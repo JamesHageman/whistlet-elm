@@ -2,6 +2,7 @@ module Main exposing (..)
 
 import App exposing (..)
 import Html exposing (program)
+import Types exposing (Model, Msg)
 
 
 main : Program Never Model Msg
