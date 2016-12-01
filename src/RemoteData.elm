@@ -1,4 +1,4 @@
-module RemoteData exposing (RemoteData(..), mapSuccess, toMaybe)
+module RemoteData exposing (RemoteData(..), mapSuccess, toMaybe, withDefault)
 
 
 type RemoteData err data
@@ -32,3 +32,13 @@ toMaybe rd =
 
         _ ->
             Nothing
+
+
+withDefault : a -> RemoteData err a -> a
+withDefault a rd =
+    case rd of
+        Success x ->
+            x
+
+        _ ->
+            a
