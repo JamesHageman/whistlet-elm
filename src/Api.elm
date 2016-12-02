@@ -1,4 +1,4 @@
-module Api exposing (login, fetchBroadcasts)
+module Api exposing (login, fetchBroadcasts, sendBroadcast)
 
 import Task exposing (Task)
 import Http
@@ -8,6 +8,11 @@ import Json.Decode.Pipeline exposing (decode, required, optional)
 import Json.Encode as JS
 import Date
 import RemoteData exposing (mapSuccess, withDefault)
+
+
+baseUrl : String
+baseUrl =
+    "https://api.whistlet.com/v1"
 
 
 sessionDecoder : Decoder Session
@@ -32,7 +37,7 @@ login username password =
                     , ( "password", JS.string password )
                     ]
     in
-        Http.post "https://api.whistlet.com/v1/users/login" body sessionDecoder
+        Http.post (baseUrl ++ "/users/login") body sessionDecoder
 
 
 url path model =
@@ -42,7 +47,7 @@ url path model =
                 |> mapSuccess (\session -> session.token)
                 |> withDefault ""
     in
-        "https://api.whistlet.com/v1" ++ path ++ "?token=" ++ token
+        baseUrl ++ path ++ "?token=" ++ token
 
 
 stringToDate : Decoder Date.Date
@@ -78,3 +83,15 @@ broadcastsDecoder =
 fetchBroadcasts : Model -> String -> Http.Request (List Broadcast)
 fetchBroadcasts model page =
     Http.get (url "/broadcasts/home" model) broadcastsDecoder
+
+
+sendBroadcast : Model -> String -> Http.Request Broadcast
+sendBroadcast model text =
+    let
+        body =
+            JS.object
+                [ ( "text", JS.string text )
+                ]
+                |> Http.jsonBody
+    in
+        Http.post (url "/broadcasts" model) body (field "broadcast" broadcastDecoder)

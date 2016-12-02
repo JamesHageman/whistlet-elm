@@ -25,21 +25,17 @@ type alias Model =
     { session : RemoteData Http.Error Session
     , loginForm : ( String, String )
     , homeBroadcasts : RemoteData Http.Error (List Broadcast)
+    , composeText : String
     }
 
 
-type alias Username =
-    String
-
-
-type alias Password =
-    String
-
-
 type Msg
-    = Login Username Password
+    = Login String String
     | LoginFinish (Result Http.Error Session)
     | FetchBroadcasts
     | FetchedBroadcasts (Result Http.Error (List Broadcast))
     | ChangeUsername String
     | ChangePassword String
+    | ChangeComposeText String
+    | SendBroadcast String
+    | ReceiveNewBroadcast (Result Http.Error Broadcast)
