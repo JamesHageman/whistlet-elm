@@ -104,3 +104,11 @@ foldBack notAsked loading err (RemoteCollection col) =
 items : RemoteCollection x a -> List a
 items (RemoteCollection col) =
     col.data
+
+
+map : (List a -> List b) -> RemoteCollection x a -> RemoteCollection x b
+map f (RemoteCollection col) =
+    RemoteCollection
+        { col
+            | data = f col.data
+        }

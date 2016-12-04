@@ -1,12 +1,12 @@
 module App exposing (..)
 
-import Html exposing (Html, Attribute, text, div, form, input, button, textarea, h1, a)
+import Html exposing (Html, Attribute, p, text, div, form, input, button, textarea, h1, a)
 import Html.Attributes exposing (type_, placeholder, value, href)
 import Html.Events exposing (onSubmit, onInput, onClick, onWithOptions, defaultOptions)
 import Tuple exposing (first, second)
 import RemoteData exposing (RemoteData(Failure, Success, Loading, NotAsked))
-import RemoteCollection exposing (remoteCollection, loadFront, loadBack, insertFront, insertBack, errorFront, errorBack)
-import Types exposing (Model, Msg(..), Session, Route(..))
+import RemoteCollection exposing (RemoteCollection, remoteCollection, loadFront, loadBack, insertFront, insertBack, errorFront, errorBack)
+import Types exposing (Model, Msg(..), Session, Route(..), Broadcast)
 import Api
 import Http
 import Navigation exposing (Location, newUrl)
@@ -19,11 +19,29 @@ init location =
     ( { session = NotAsked
       , loginForm = ( "", "" )
       , homeBroadcasts = remoteCollection
+      , exploreBroadcasts = remoteCollection
       , composeText = ""
       , route = Router.parse location
       }
     , Cmd.none
     )
+
+
+updateBroadcasts :
+    Route
+    -> (RemoteCollection Http.Error Broadcast -> RemoteCollection Http.Error Broadcast)
+    -> Model
+    -> Model
+updateBroadcasts route f model =
+    case route of
+        Home ->
+            { model | homeBroadcasts = f model.homeBroadcasts }
+
+        Explore ->
+            { model | exploreBroadcasts = f model.exploreBroadcasts }
+
+        _ ->
+            model
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -34,30 +52,50 @@ update msg model =
 
         Login username password ->
             { model | session = Loading }
-                ! [ Http.send LoginFinish <| Api.login username password
+                ! [ Http.send LoginFinish
+                        (Api.login username password)
                   ]
 
         LoginFinish (Ok session) ->
             let
-                newModel =
+                new0 =
                     { model | session = Success session }
+
+                ( new1, fx1 ) =
+                    update (FetchBroadcasts Home) new0
+
+                ( new2, fx2 ) =
+                    update (FetchBroadcasts Explore) new1
             in
-                update FetchBroadcasts newModel
+                new2 ! [ fx1, fx2 ]
 
         LoginFinish (Err err) ->
             { model | session = Failure err } ! []
 
-        FetchBroadcasts ->
-            { model | homeBroadcasts = loadBack model.homeBroadcasts }
-                ! [ Http.send FetchedBroadcasts
-                        (Api.fetchHomeBroadcasts model)
-                  ]
+        FetchBroadcasts route ->
+            let
+                fx =
+                    case route of
+                        Home ->
+                            [ Http.send (FetchedBroadcasts route)
+                                (Api.fetchHomeBroadcasts model)
+                            ]
 
-        FetchedBroadcasts (Ok bs) ->
-            { model | homeBroadcasts = insertBack bs model.homeBroadcasts } ! []
+                        Explore ->
+                            [ Http.send (FetchedBroadcasts route)
+                                (Api.fetchExploreBroadcasts model)
+                            ]
 
-        FetchedBroadcasts (Err err) ->
-            { model | homeBroadcasts = errorBack err model.homeBroadcasts } ! []
+                        _ ->
+                            []
+            in
+                updateBroadcasts route RemoteCollection.loadBack model ! fx
+
+        FetchedBroadcasts route (Ok bs) ->
+            updateBroadcasts route (RemoteCollection.insertBack bs) model ! []
+
+        FetchedBroadcasts route (Err err) ->
+            updateBroadcasts route (RemoteCollection.errorBack err) model ! []
 
         ChangeUsername username ->
             { model | loginForm = ( username, second model.loginForm ) } ! []
@@ -138,9 +176,8 @@ link to attrs children =
 homePage : Model -> Html Msg
 homePage model =
     div []
-        [ header model
-        , composeBox model
-        , broadcastList model
+        [ composeBox model
+        , broadcastList model.homeBroadcasts
         ]
 
 
@@ -148,13 +185,15 @@ header : Model -> Html Msg
 header model =
     div []
         [ h1 [] [ text "Whistlet" ]
+        , link "/" [] [ text "home" ]
+        , text " | "
         , link "/explore" [] [ text "explore" ]
         ]
 
 
 composeBox : Model -> Html Msg
 composeBox model =
-    form [ onSubmit <| SendBroadcast model.composeText ]
+    form [ onSubmit (SendBroadcast model.composeText) ]
         [ div []
             [ textarea
                 [ onInput ChangeComposeText
@@ -166,30 +205,47 @@ composeBox model =
         ]
 
 
-broadcastList : Model -> Html Msg
-broadcastList model =
+renderError : Http.Error -> Html Msg
+renderError err =
+    text ("whoops! an error occured: " ++ (toString err))
+
+
+broadcastList : RemoteCollection Http.Error Broadcast -> Html Msg
+broadcastList data =
     div []
         [ RemoteCollection.foldFront
             (text "")
             (text "loading...")
-            (\err -> text <| "whoops! an error occured: " ++ (toString err))
-            model.homeBroadcasts
+            renderError
+            data
         , div []
-            (model.homeBroadcasts
+            (data
                 |> RemoteCollection.items
                 |> List.map (\b -> div [] [ text b.text ])
             )
+        , RemoteCollection.foldBack
+            (button [] [ text "load more" ])
+            (text "loading...")
+            renderError
+            data
         ]
 
 
 notFoundPage : Location -> Model -> Html Msg
 notFoundPage location model =
-    Debug.crash "TODO not found"
+    div []
+        [ h1 [] [ text "404 :(" ]
+        , link "/" [] [ text "Go home" ]
+        , p [] [ text location.pathname ]
+        ]
 
 
 explorePage : Model -> Html Msg
 explorePage model =
-    Debug.crash "TODO explore"
+    div []
+        [ h1 [] [ text "Explore" ]
+        , broadcastList model.exploreBroadcasts
+        ]
 
 
 profilePage : String -> Model -> Html Msg
@@ -210,18 +266,21 @@ view model =
             loginForm model.loginForm False
 
         Success _ ->
-            case model.route of
-                Home ->
-                    homePage model
+            div []
+                [ header model
+                , case model.route of
+                    Home ->
+                        homePage model
 
-                Explore ->
-                    explorePage model
+                    Explore ->
+                        explorePage model
 
-                Profile name ->
-                    profilePage name model
+                    Profile name ->
+                        profilePage name model
 
-                NotFound location ->
-                    notFoundPage location model
+                    NotFound location ->
+                        notFoundPage location model
+                ]
 
 
 subscriptions : Model -> Sub Msg

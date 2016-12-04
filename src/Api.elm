@@ -69,6 +69,7 @@ broadcastDecoder =
     decode Broadcast
         |> required "text" string
         |> required "id" int
+        |> required "rebroadcast_count" int
         |> optional "rebroadcast_id" int 0
         |> required "created_at" stringToDate
         |> required "order_date" stringToDate

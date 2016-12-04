@@ -11,6 +11,7 @@ import Navigation exposing (Location)
 type alias Broadcast =
     { text : String
     , sourceId : Int
+    , rebroadcastCount : Int
     , rebroadcastId : Int
     , createdAt : Date
     , orderDate : Date
@@ -27,6 +28,7 @@ type alias Model =
     { session : RemoteData Http.Error Session
     , loginForm : ( String, String )
     , homeBroadcasts : RemoteCollection Http.Error Broadcast
+    , exploreBroadcasts : RemoteCollection Http.Error Broadcast
     , composeText : String
     , route : Route
     }
@@ -42,8 +44,8 @@ type Route
 type Msg
     = Login String String
     | LoginFinish (Result Http.Error Session)
-    | FetchBroadcasts
-    | FetchedBroadcasts (Result Http.Error (List Broadcast))
+    | FetchBroadcasts Route
+    | FetchedBroadcasts Route (Result Http.Error (List Broadcast))
     | ChangeUsername String
     | ChangePassword String
     | ChangeComposeText String

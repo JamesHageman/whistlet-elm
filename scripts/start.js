@@ -6,6 +6,7 @@ const config = require('../config/webpack.config.dev');
 const formatWebpackMessages = require('react-dev-utils/formatWebpackMessages');
 const clearConsole = require('react-dev-utils/clearConsole');
 const openBrowser = require('react-dev-utils/openBrowser');
+const historyApiFallback = require('connect-history-api-fallback');
 
 process.env.NODE_ENV = 'development';
 
@@ -57,6 +58,17 @@ const devServer = new WebpackDevServer(compiler, {
   publicPath: '/',
   quiet: true
 });
+
+devServer.use(historyApiFallback({
+  // Paths with dots should still use the history fallback.
+  // See https://github.com/facebookincubator/create-react-app/issues/387.
+  disableDotRule: true,
+  htmlAcceptHeaders:
+    ['text/html', '*/*']
+}));
+
+devServer.use(devServer.middleware);
+
 
 // Launch WebpackDevServer.
 devServer.listen(port, function (err) {
