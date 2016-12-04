@@ -1,8 +1,8 @@
 module App exposing (..)
 
-import Html exposing (Html, Attribute, p, text, div, form, input, button, textarea, h1, a)
+import Html exposing (Html, Attribute, span, p, text, div, form, input, button, textarea, h1, a)
 import Html.Attributes exposing (type_, class, placeholder, value, href)
-import Html.Events exposing (onSubmit, onInput, onMouseOver, onClick, onWithOptions, defaultOptions)
+import Html.Events exposing (onSubmit, onInput, onMouseOver, onMouseOut, onClick, onWithOptions, defaultOptions)
 import Tuple exposing (first, second)
 import RemoteData exposing (RemoteData(Failure, Success, Loading, NotAsked))
 import RemoteCollection exposing (RemoteCollection, remoteCollection, loadFront, loadBack, insertFront, insertBack, errorFront, errorBack)
@@ -20,6 +20,7 @@ init location =
       , loginForm = ( "", "" )
       , homeBroadcasts = remoteCollection
       , exploreBroadcasts = remoteCollection
+      , focusedBroadcast = Nothing
       , composeText = ""
       , route = Router.parse location
       }
@@ -132,14 +133,21 @@ update msg model =
             model ! [ newUrl url ]
 
         FetchOwner broadcast ->
-            updateBroadcasts
-                model.route
-                (RemoteCollection.map (loadOwner Loading broadcast))
-                model
-                ! [ Http.send
-                        (FetchedOwner broadcast)
-                        (Api.fetchBroadcastOwner broadcast model)
-                  ]
+            let
+                ( new1, fx1 ) =
+                    updateBroadcasts
+                        model.route
+                        (RemoteCollection.map (loadOwner Loading broadcast))
+                        model
+                        ! [ Http.send
+                                (FetchedOwner broadcast)
+                                (Api.fetchBroadcastOwner broadcast model)
+                          ]
+
+                ( new2, fx2 ) =
+                    update (ShowOwner broadcast) new1
+            in
+                new2 ! [ fx1, fx2 ]
 
         FetchedOwner broadcast res ->
             let
@@ -157,13 +165,19 @@ update msg model =
                     model
                     ! []
 
+        ShowOwner broadcast ->
+            { model | focusedBroadcast = Just broadcast } ! []
+
+        HideOwners ->
+            { model | focusedBroadcast = Nothing } ! []
+
 
 loadOwner : RemoteData Http.Error BroadcastOwner -> Broadcast -> List Broadcast -> List Broadcast
 loadOwner owner b0 bs =
     bs
         |> List.map
             (\b ->
-                if b.sourceId == b0.sourceId && b.rebroadcastId == b0.rebroadcastId then
+                if broadcastCmp b b0 then
                     { b | owner = owner }
                 else
                     b
@@ -252,18 +266,62 @@ broadcastRow : Model -> Broadcast -> Html Msg
 broadcastRow model b =
     let
         cls =
-            class "broadcast-row"
+            class "broadcast-row__hover-target"
 
-        attrs =
+        showOnHover =
             case b.owner of
                 NotAsked ->
-                    [ cls ] ++ [ onMouseOver (FetchOwner b) ]
+                    onMouseOver (FetchOwner b)
 
                 _ ->
-                    [ cls ]
+                    onMouseOver (ShowOwner b)
+
+        hideOnMouseOut =
+            onMouseOut HideOwners
+
+        attrs =
+            [ cls, showOnHover, hideOnMouseOut ]
+
+        children =
+            case model.focusedBroadcast of
+                Just b0 ->
+                    if broadcastCmp b0 b then
+                        [ renderOwner b.owner (FetchOwner b) ]
+                    else
+                        []
+
+                Nothing ->
+                    [ text b.text ]
     in
-        div attrs
-            [ text b.text ]
+        div [ class "broadcast-row" ]
+            [ div
+                attrs
+                children
+            ]
+
+
+broadcastCmp : Broadcast -> Broadcast -> Bool
+broadcastCmp b1 b2 =
+    (b1.sourceId == b2.sourceId) && (b1.rebroadcastId == b2.rebroadcastId)
+
+
+renderOwner : RemoteData Http.Error BroadcastOwner -> Msg -> Html Msg
+renderOwner owner retry =
+    case owner of
+        Loading ->
+            div [] [ text "loading" ]
+
+        Success owner ->
+            div []
+                [ text owner.name
+                , span [ class "broadcast-row__username" ] [ text ("@" ++ owner.username) ]
+                ]
+
+        _ ->
+            div []
+                [ text "whoops! an error occurred..."
+                , button [ onClick retry ] [ text "try again" ]
+                ]
 
 
 broadcastList : Model -> RemoteCollection Http.Error Broadcast -> Html Msg

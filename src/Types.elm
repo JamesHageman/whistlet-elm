@@ -40,6 +40,7 @@ type alias Model =
     , loginForm : ( String, String )
     , homeBroadcasts : RemoteCollection Http.Error Broadcast
     , exploreBroadcasts : RemoteCollection Http.Error Broadcast
+    , focusedBroadcast : Maybe Broadcast
     , composeText : String
     , route : Route
     }
@@ -59,6 +60,8 @@ type Msg
     | FetchedBroadcasts Route (Result Http.Error (List Broadcast))
     | FetchOwner Broadcast
     | FetchedOwner Broadcast (Result Http.Error BroadcastOwner)
+    | ShowOwner Broadcast
+    | HideOwners
     | ChangeUsername String
     | ChangePassword String
     | ChangeComposeText String
