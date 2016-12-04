@@ -11,6 +11,7 @@ module RemoteCollection
         , foldFront
         , foldBack
         , items
+        , map
         )
 
 

@@ -1,12 +1,12 @@
 module App exposing (..)
 
 import Html exposing (Html, Attribute, p, text, div, form, input, button, textarea, h1, a)
-import Html.Attributes exposing (type_, placeholder, value, href)
-import Html.Events exposing (onSubmit, onInput, onClick, onWithOptions, defaultOptions)
+import Html.Attributes exposing (type_, class, placeholder, value, href)
+import Html.Events exposing (onSubmit, onInput, onMouseOver, onClick, onWithOptions, defaultOptions)
 import Tuple exposing (first, second)
 import RemoteData exposing (RemoteData(Failure, Success, Loading, NotAsked))
 import RemoteCollection exposing (RemoteCollection, remoteCollection, loadFront, loadBack, insertFront, insertBack, errorFront, errorBack)
-import Types exposing (Model, Msg(..), Session, Route(..), Broadcast)
+import Types exposing (Model, Msg(..), Session, Route(..), Broadcast, BroadcastOwner)
 import Api
 import Http
 import Navigation exposing (Location, newUrl)
@@ -131,6 +131,44 @@ update msg model =
         Push url ->
             model ! [ newUrl url ]
 
+        FetchOwner broadcast ->
+            updateBroadcasts
+                model.route
+                (RemoteCollection.map (loadOwner Loading broadcast))
+                model
+                ! [ Http.send
+                        (FetchedOwner broadcast)
+                        (Api.fetchBroadcastOwner broadcast model)
+                  ]
+
+        FetchedOwner broadcast res ->
+            let
+                owner =
+                    case res of
+                        Ok x ->
+                            Success x
+
+                        Err x ->
+                            Failure x
+            in
+                updateBroadcasts
+                    model.route
+                    (RemoteCollection.map (loadOwner owner broadcast))
+                    model
+                    ! []
+
+
+loadOwner : RemoteData Http.Error BroadcastOwner -> Broadcast -> List Broadcast -> List Broadcast
+loadOwner owner b0 bs =
+    bs
+        |> List.map
+            (\b ->
+                if b.sourceId == b0.sourceId && b.rebroadcastId == b0.rebroadcastId then
+                    { b | owner = owner }
+                else
+                    b
+            )
+
 
 loginForm : ( String, String ) -> Bool -> Html Msg
 loginForm ( username, password ) isLoading =
@@ -177,7 +215,7 @@ homePage : Model -> Html Msg
 homePage model =
     div []
         [ composeBox model
-        , broadcastList model.homeBroadcasts
+        , broadcastList model model.homeBroadcasts
         ]
 
 
@@ -210,9 +248,27 @@ renderError err =
     text ("whoops! an error occured: " ++ (toString err))
 
 
-broadcastList : RemoteCollection Http.Error Broadcast -> Html Msg
-broadcastList data =
-    div []
+broadcastRow : Model -> Broadcast -> Html Msg
+broadcastRow model b =
+    let
+        cls =
+            class "broadcast-row"
+
+        attrs =
+            case b.owner of
+                NotAsked ->
+                    [ cls ] ++ [ onMouseOver (FetchOwner b) ]
+
+                _ ->
+                    [ cls ]
+    in
+        div attrs
+            [ text b.text ]
+
+
+broadcastList : Model -> RemoteCollection Http.Error Broadcast -> Html Msg
+broadcastList model data =
+    div [ class "broadcast-list" ]
         [ RemoteCollection.foldFront
             (text "")
             (text "loading...")
@@ -221,7 +277,7 @@ broadcastList data =
         , div []
             (data
                 |> RemoteCollection.items
-                |> List.map (\b -> div [] [ text b.text ])
+                |> List.map (broadcastRow model)
             )
         , RemoteCollection.foldBack
             (button [] [ text "load more" ])
@@ -244,7 +300,7 @@ explorePage : Model -> Html Msg
 explorePage model =
     div []
         [ h1 [] [ text "Explore" ]
-        , broadcastList model.exploreBroadcasts
+        , broadcastList model model.exploreBroadcasts
         ]
 
 

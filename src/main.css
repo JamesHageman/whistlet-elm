@@ -5,3 +5,15 @@ body {
   margin: 0 auto;
   padding: 10px;
 }
+
+.broadcast-list {
+  border: 1px solid #ccc
+}
+
+.broadcast-row {
+  min-height: 72px;
+  padding: 10px;
+}
+.broadcast-row:hover {
+  background-color: #ddd;
+}

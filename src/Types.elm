@@ -8,6 +8,16 @@ import Dict exposing (Dict)
 import Navigation exposing (Location)
 
 
+type alias BroadcastOwner =
+    { avatarUrl : Maybe String
+    , id : Int
+    , name : String
+    , username : String
+    , orderDate : Maybe Date
+    , rebroadcastUsername : Maybe String
+    }
+
+
 type alias Broadcast =
     { text : String
     , sourceId : Int
@@ -15,6 +25,7 @@ type alias Broadcast =
     , rebroadcastId : Int
     , createdAt : Date
     , orderDate : Date
+    , owner : RemoteData Http.Error BroadcastOwner
     }
 
 
@@ -46,6 +57,8 @@ type Msg
     | LoginFinish (Result Http.Error Session)
     | FetchBroadcasts Route
     | FetchedBroadcasts Route (Result Http.Error (List Broadcast))
+    | FetchOwner Broadcast
+    | FetchedOwner Broadcast (Result Http.Error BroadcastOwner)
     | ChangeUsername String
     | ChangePassword String
     | ChangeComposeText String
