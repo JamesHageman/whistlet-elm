@@ -1,21 +1,26 @@
 module App exposing (..)
 
-import Html exposing (Html, text, div, form, input, button, textarea, h1)
-import Html.Attributes exposing (type_, placeholder, value)
-import Html.Events exposing (onSubmit, onInput, onClick)
+import Html exposing (Html, Attribute, text, div, form, input, button, textarea, h1, a)
+import Html.Attributes exposing (type_, placeholder, value, href)
+import Html.Events exposing (onSubmit, onInput, onClick, onWithOptions, defaultOptions)
 import Tuple exposing (first, second)
-import RemoteData exposing (..)
-import Types exposing (Model, Msg(..), Session)
+import RemoteData exposing (RemoteData(Failure, Success, Loading, NotAsked))
+import RemoteCollection exposing (remoteCollection, loadFront, loadBack, insertFront, insertBack, errorFront, errorBack)
+import Types exposing (Model, Msg(..), Session, Route(..))
 import Api
 import Http
+import Navigation exposing (Location, newUrl)
+import Router
+import Json.Decode
 
 
-init : ( Model, Cmd Msg )
-init =
+init : Location -> ( Model, Cmd Msg )
+init location =
     ( { session = NotAsked
       , loginForm = ( "", "" )
-      , homeBroadcasts = NotAsked
+      , homeBroadcasts = remoteCollection
       , composeText = ""
+      , route = Router.parse location
       }
     , Cmd.none
     )
@@ -23,86 +28,90 @@ init =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    let
-        _ =
-            Debug.log "msg" msg
-    in
-        case msg of
-            Login username password ->
-                { model | session = Loading }
-                    ! [ Http.send LoginFinish <| Api.login username password
-                      ]
+    case Debug.log "msg" msg of
+        UrlChange location ->
+            { model | route = Router.parse location } ! []
 
-            LoginFinish (Ok session) ->
-                let
-                    newModel =
-                        { model | session = Success session }
-                in
-                    update FetchBroadcasts newModel
+        Login username password ->
+            { model | session = Loading }
+                ! [ Http.send LoginFinish <| Api.login username password
+                  ]
 
-            LoginFinish (Err err) ->
-                { model | session = Failure err } ! []
+        LoginFinish (Ok session) ->
+            let
+                newModel =
+                    { model | session = Success session }
+            in
+                update FetchBroadcasts newModel
 
-            FetchBroadcasts ->
-                let
-                    newBroacasts =
-                        case model.homeBroadcasts of
-                            NotAsked ->
-                                Loading
+        LoginFinish (Err err) ->
+            { model | session = Failure err } ! []
 
-                            Failure err ->
-                                Loading
+        FetchBroadcasts ->
+            { model | homeBroadcasts = loadBack model.homeBroadcasts }
+                ! [ Http.send FetchedBroadcasts
+                        (Api.fetchHomeBroadcasts model)
+                  ]
 
-                            _ ->
-                                model.homeBroadcasts
-                in
-                    { model | homeBroadcasts = newBroacasts }
-                        ! [ Http.send FetchedBroadcasts <| Api.fetchBroadcasts model "home"
-                          ]
+        FetchedBroadcasts (Ok bs) ->
+            { model | homeBroadcasts = insertBack bs model.homeBroadcasts } ! []
 
-            FetchedBroadcasts (Ok bs) ->
-                { model | homeBroadcasts = Success bs } ! []
+        FetchedBroadcasts (Err err) ->
+            { model | homeBroadcasts = errorBack err model.homeBroadcasts } ! []
 
-            FetchedBroadcasts (Err err) ->
-                { model | homeBroadcasts = Failure err } ! []
+        ChangeUsername username ->
+            { model | loginForm = ( username, second model.loginForm ) } ! []
 
-            ChangeUsername username ->
-                { model | loginForm = ( username, second model.loginForm ) } ! []
+        ChangePassword password ->
+            { model | loginForm = ( first model.loginForm, password ) } ! []
 
-            ChangePassword password ->
-                { model | loginForm = ( first model.loginForm, password ) } ! []
+        ChangeComposeText text ->
+            { model | composeText = text } ! []
 
-            ChangeComposeText text ->
-                { model | composeText = text } ! []
+        SendBroadcast text ->
+            { model
+                | homeBroadcasts = loadFront model.homeBroadcasts
+            }
+                ! [ Http.send ReceiveNewBroadcast
+                        (Api.sendBroadcast model text)
+                  ]
 
-            SendBroadcast text ->
-                model ! [ Http.send ReceiveNewBroadcast <| Api.sendBroadcast model text ]
+        ReceiveNewBroadcast (Ok b) ->
+            { model
+                | homeBroadcasts =
+                    insertFront [ b ] model.homeBroadcasts
+                , composeText = ""
+            }
+                ! []
 
-            ReceiveNewBroadcast (Ok b) ->
-                { model
-                    | homeBroadcasts =
-                        case model.homeBroadcasts of
-                            Success bs ->
-                                Success (b :: bs)
+        ReceiveNewBroadcast (Err err) ->
+            { model
+                | homeBroadcasts = errorFront err model.homeBroadcasts
+            }
+                ! []
 
-                            _ ->
-                                Success [ b ]
-                    , composeText = ""
-                }
-                    ! []
-
-            ReceiveNewBroadcast (Err err) ->
-                model ! []
+        Push url ->
+            model ! [ newUrl url ]
 
 
 loginForm : ( String, String ) -> Bool -> Html Msg
 loginForm ( username, password ) isLoading =
     form [ onSubmit <| Login username password ]
         [ div []
-            [ input [ type_ "text", placeholder "username", onInput ChangeUsername ] []
+            [ input
+                [ type_ "text"
+                , placeholder "username"
+                , onInput ChangeUsername
+                ]
+                []
             ]
         , div []
-            [ input [ type_ "password", placeholder "password", onInput ChangePassword ] []
+            [ input
+                [ type_ "password"
+                , placeholder "password"
+                , onInput ChangePassword
+                ]
+                []
             ]
         , if isLoading then
             text "Loading.."
@@ -110,6 +119,20 @@ loginForm ( username, password ) isLoading =
             text ""
         , button [ type_ "submit" ] [ text "Log in" ]
         ]
+
+
+link : String -> List (Attribute Msg) -> List (Html Msg) -> Html Msg
+link to attrs children =
+    a
+        ([ href to
+         , onWithOptions
+            "click"
+            { defaultOptions | preventDefault = True }
+            (Json.Decode.succeed (Push to))
+         ]
+            ++ attrs
+        )
+        children
 
 
 homePage : Model -> Html Msg
@@ -123,36 +146,55 @@ homePage model =
 
 header : Model -> Html Msg
 header model =
-    h1 [] [ text "Whistlet" ]
+    div []
+        [ h1 [] [ text "Whistlet" ]
+        , link "/explore" [] [ text "explore" ]
+        ]
 
 
 composeBox : Model -> Html Msg
 composeBox model =
     form [ onSubmit <| SendBroadcast model.composeText ]
-        [ div [] [ textarea [ onInput ChangeComposeText, value model.composeText ] [] ]
+        [ div []
+            [ textarea
+                [ onInput ChangeComposeText
+                , value model.composeText
+                ]
+                []
+            ]
         , button [] [ text "Preach it!" ]
         ]
 
 
 broadcastList : Model -> Html Msg
 broadcastList model =
-    case model.homeBroadcasts of
-        Loading ->
-            div [] [ text "..." ]
+    div []
+        [ RemoteCollection.foldFront
+            (text "")
+            (text "loading...")
+            (\err -> text <| "whoops! an error occured: " ++ (toString err))
+            model.homeBroadcasts
+        , div []
+            (model.homeBroadcasts
+                |> RemoteCollection.items
+                |> List.map (\b -> div [] [ text b.text ])
+            )
+        ]
 
-        NotAsked ->
-            div [] [ text "..." ]
 
-        Failure err ->
-            div [] [ text "whoops!", button [ onClick FetchBroadcasts ] [ text "try again" ] ]
+notFoundPage : Location -> Model -> Html Msg
+notFoundPage location model =
+    Debug.crash "TODO not found"
 
-        Success broadcasts ->
-            let
-                elems =
-                    broadcasts
-                        |> List.map (\b -> div [] [ text b.text ])
-            in
-                div [] elems
+
+explorePage : Model -> Html Msg
+explorePage model =
+    Debug.crash "TODO explore"
+
+
+profilePage : String -> Model -> Html Msg
+profilePage name model =
+    Debug.crash ("TODO profile " ++ name)
 
 
 view : Model -> Html Msg
@@ -168,7 +210,18 @@ view model =
             loginForm model.loginForm False
 
         Success _ ->
-            homePage model
+            case model.route of
+                Home ->
+                    homePage model
+
+                Explore ->
+                    explorePage model
+
+                Profile name ->
+                    profilePage name model
+
+                NotFound location ->
+                    notFoundPage location model
 
 
 subscriptions : Model -> Sub Msg

@@ -1,9 +1,11 @@
 module Types exposing (..)
 
-import RemoteData exposing (..)
+import RemoteData exposing (RemoteData)
+import RemoteCollection exposing (RemoteCollection)
 import Http
 import Date exposing (Date)
 import Dict exposing (Dict)
+import Navigation exposing (Location)
 
 
 type alias Broadcast =
@@ -24,9 +26,17 @@ type alias Session =
 type alias Model =
     { session : RemoteData Http.Error Session
     , loginForm : ( String, String )
-    , homeBroadcasts : RemoteData Http.Error (List Broadcast)
+    , homeBroadcasts : RemoteCollection Http.Error Broadcast
     , composeText : String
+    , route : Route
     }
+
+
+type Route
+    = Home
+    | Explore
+    | Profile String
+    | NotFound Location
 
 
 type Msg
@@ -39,3 +49,5 @@ type Msg
     | ChangeComposeText String
     | SendBroadcast String
     | ReceiveNewBroadcast (Result Http.Error Broadcast)
+    | UrlChange Location
+    | Push String

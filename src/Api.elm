@@ -1,4 +1,4 @@
-module Api exposing (login, fetchBroadcasts, sendBroadcast)
+module Api exposing (login, fetchHomeBroadcasts, fetchExploreBroadcasts, sendBroadcast)
 
 import Task exposing (Task)
 import Http
@@ -80,9 +80,19 @@ broadcastsDecoder =
         |> field "broadcasts"
 
 
-fetchBroadcasts : Model -> String -> Http.Request (List Broadcast)
-fetchBroadcasts model page =
-    Http.get (url "/broadcasts/home" model) broadcastsDecoder
+fetchBroadcasts : String -> Model -> Http.Request (List Broadcast)
+fetchBroadcasts page model =
+    Http.get (url ("/broadcasts/" ++ page) model) broadcastsDecoder
+
+
+fetchHomeBroadcasts : Model -> Http.Request (List Broadcast)
+fetchHomeBroadcasts =
+    fetchBroadcasts "home"
+
+
+fetchExploreBroadcasts : Model -> Http.Request (List Broadcast)
+fetchExploreBroadcasts =
+    fetchBroadcasts "explore"
 
 
 sendBroadcast : Model -> String -> Http.Request Broadcast
