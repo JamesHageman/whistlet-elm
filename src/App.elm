@@ -1,7 +1,7 @@
 module App exposing (..)
 
 import Html exposing (Html, Attribute, span, p, text, div, form, input, button, textarea, h1, a)
-import Html.Attributes exposing (type_, class, placeholder, value, href)
+import Html.Attributes exposing (type_, rows, class, placeholder, value, href)
 import Html.Events exposing (onSubmit, onInput, onMouseOver, onMouseOut, onClick, onWithOptions, defaultOptions)
 import Tuple exposing (first, second)
 import RemoteData exposing (RemoteData(Failure, Success, Loading, NotAsked))
@@ -245,11 +245,16 @@ header model =
 
 composeBox : Model -> Html Msg
 composeBox model =
-    form [ onSubmit (SendBroadcast model.composeText) ]
+    form
+        [ onSubmit (SendBroadcast model.composeText)
+        , class "compose-box"
+        ]
         [ div []
             [ textarea
                 [ onInput ChangeComposeText
                 , value model.composeText
+                , class "compose-box__textarea"
+                , rows 4
                 ]
                 []
             ]
