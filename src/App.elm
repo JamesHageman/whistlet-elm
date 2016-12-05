@@ -1,4 +1,4 @@
-module App exposing (..)
+module App exposing (init, update, view, subscriptions)
 
 import Html exposing (Html, Attribute, span, p, text, div, form, input, button, textarea, h1, a)
 import Html.Attributes exposing (type_, rows, class, placeholder, value, href)
@@ -6,7 +6,7 @@ import Html.Events exposing (onSubmit, onInput, onMouseOver, onMouseOut, onClick
 import Tuple exposing (first, second)
 import RemoteData exposing (RemoteData(Failure, Success, Loading, NotAsked))
 import RemoteCollection exposing (RemoteCollection, remoteCollection, loadFront, loadBack, insertFront, insertBack, errorFront, errorBack)
-import Types exposing (Model, Msg(..), Session, Route(..), Broadcast, BroadcastOwner)
+import Types exposing (Model, Flags, Msg(..), Session, Route(..), Broadcast, BroadcastOwner)
 import Api
 import Http
 import Navigation exposing (Location, newUrl)
@@ -15,22 +15,35 @@ import Json.Decode
 import Time
 import Task
 import Date
+import Ports
 
 
-init : Location -> ( Model, Cmd Msg )
-init location =
-    ( { session = NotAsked
-      , loginForm = ( "", "" )
-      , homeBroadcasts = remoteCollection
-      , exploreBroadcasts = remoteCollection
-      , focusedBroadcast = Nothing
-      , composeText = ""
-      , route = Router.parse location
-      , time = 0
-      }
-    , Task.perform TimeUpdate
-        (Time.now)
-    )
+getInitialModel : Location -> Model
+getInitialModel location =
+    { session = NotAsked
+    , loginForm = ( "", "" )
+    , homeBroadcasts = remoteCollection
+    , exploreBroadcasts = remoteCollection
+    , focusedBroadcast = Nothing
+    , composeText = ""
+    , route = Router.parse location
+    , time = 0
+    }
+
+
+init : Flags -> Location -> ( Model, Cmd Msg )
+init { session } location =
+    let
+        ( model, fx ) =
+            case session of
+                Nothing ->
+                    getInitialModel location ! []
+
+                Just session ->
+                    getInitialModel location
+                        |> update (LoginFinish (Ok session))
+    in
+        model ! [ fx, Task.perform TimeUpdate Time.now ]
 
 
 updateBroadcasts :
@@ -73,10 +86,14 @@ update msg model =
                 ( new2, fx2 ) =
                     update (FetchBroadcasts Explore Nothing) new1
             in
-                new2 ! [ fx1, fx2 ]
+                new2 ! [ fx1, fx2, Ports.saveSession session ]
 
         LoginFinish (Err err) ->
-            { model | session = Failure err, loginForm = ( first model.loginForm, "" ) } ! []
+            { model
+                | session = Failure err
+                , loginForm = ( first model.loginForm, "" )
+            }
+                ! []
 
         FetchBroadcasts route orderDate ->
             let
@@ -201,7 +218,7 @@ loadOwner owner b0 bs =
 
 loginForm : ( String, String ) -> Bool -> Html Msg
 loginForm ( username, password ) isLoading =
-    form [ onSubmit <| Login username password ]
+    form [ onSubmit (Login username password) ]
         [ div []
             [ input
                 [ type_ "text"

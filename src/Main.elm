@@ -1,10 +1,10 @@
 module Main exposing (..)
 
 import App exposing (..)
-import Navigation exposing (program)
-import Types exposing (Model, Msg(UrlChange))
+import Navigation
+import Types exposing (Model, Msg(UrlChange), Flags)
 
 
-main : Program Never Model Msg
+main : Program Flags Model Msg
 main =
-    program UrlChange { view = view, init = init, update = update, subscriptions = subscriptions }
+    Navigation.programWithFlags UrlChange { view = view, init = init, update = update, subscriptions = subscriptions }
