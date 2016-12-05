@@ -18,8 +18,8 @@ import Date
 import Ports
 
 
-initModel : Location -> Model
-initModel location =
+getInitialModel : Location -> Model
+getInitialModel location =
     { session = NotAsked
     , loginForm = ( "", "" )
     , homeBroadcasts = remoteCollection
@@ -37,10 +37,10 @@ init { session } location =
         ( model, fx ) =
             case session of
                 Nothing ->
-                    initModel location ! []
+                    getInitialModel location ! []
 
                 Just session ->
-                    initModel location
+                    getInitialModel location
                         |> update (LoginFinish (Ok session))
     in
         model ! [ fx, Task.perform TimeUpdate Time.now ]
