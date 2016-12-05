@@ -1,4 +1,4 @@
-module RemoteData exposing (RemoteData(..), mapSuccess, toMaybe, withDefault)
+module Data.RemoteData exposing (RemoteData(..), mapSuccess, toMaybe, withDefault)
 
 
 type RemoteData err data
