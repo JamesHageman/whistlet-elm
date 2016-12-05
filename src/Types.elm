@@ -36,6 +36,11 @@ type alias Session =
     }
 
 
+type alias Flags =
+    { session : Maybe Session
+    }
+
+
 type alias Model =
     { session : RemoteData Http.Error Session
     , loginForm : ( String, String )
