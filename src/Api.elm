@@ -5,9 +5,10 @@ import Types exposing (Model, Broadcast, BroadcastOwner, Session, Msg(LoginFinis
 import Json.Decode exposing (Decoder, nullable, string, int, field, succeed, fail, andThen, list)
 import Json.Decode.Pipeline exposing (decode, required, optional, hardcoded)
 import Json.Encode as JS
-import Date
+import Date exposing (Date)
 import RemoteData exposing (mapSuccess, withDefault, RemoteData(NotAsked))
 import QueryString
+import Date.Extra exposing (toUtcIsoString)
 
 
 baseUrl : String
@@ -98,17 +99,28 @@ broadcastsDecoder =
         |> field "broadcasts"
 
 
-fetchBroadcasts : String -> Model -> Http.Request (List Broadcast)
-fetchBroadcasts page model =
-    Http.get (url ("/broadcasts/" ++ page) QueryString.empty model) broadcastsDecoder
+fetchBroadcasts : String -> Model -> Maybe Date -> Http.Request (List Broadcast)
+fetchBroadcasts page model orderDate =
+    let
+        query =
+            case orderDate of
+                Just date ->
+                    QueryString.empty
+                        |> QueryString.add "order_date"
+                            (toUtcIsoString date)
+
+                Nothing ->
+                    QueryString.empty
+    in
+        Http.get (url ("/broadcasts/" ++ page) query model) broadcastsDecoder
 
 
-fetchHomeBroadcasts : Model -> Http.Request (List Broadcast)
+fetchHomeBroadcasts : Model -> Maybe Date -> Http.Request (List Broadcast)
 fetchHomeBroadcasts =
     fetchBroadcasts "home"
 
 
-fetchExploreBroadcasts : Model -> Http.Request (List Broadcast)
+fetchExploreBroadcasts : Model -> Maybe Date -> Http.Request (List Broadcast)
 fetchExploreBroadcasts =
     fetchBroadcasts "explore"
 

@@ -12,6 +12,9 @@ import Http
 import Navigation exposing (Location, newUrl)
 import Router
 import Json.Decode
+import Time
+import Task
+import Date
 
 
 init : Location -> ( Model, Cmd Msg )
@@ -23,8 +26,10 @@ init location =
       , focusedBroadcast = Nothing
       , composeText = ""
       , route = Router.parse location
+      , time = 0
       }
-    , Cmd.none
+    , Task.perform TimeUpdate
+        (Time.now)
     )
 
 
@@ -63,28 +68,28 @@ update msg model =
                     { model | session = Success session }
 
                 ( new1, fx1 ) =
-                    update (FetchBroadcasts Home) new0
+                    update (FetchBroadcasts Home Nothing) new0
 
                 ( new2, fx2 ) =
-                    update (FetchBroadcasts Explore) new1
+                    update (FetchBroadcasts Explore Nothing) new1
             in
                 new2 ! [ fx1, fx2 ]
 
         LoginFinish (Err err) ->
-            { model | session = Failure err } ! []
+            { model | session = Failure err, loginForm = ( first model.loginForm, "" ) } ! []
 
-        FetchBroadcasts route ->
+        FetchBroadcasts route orderDate ->
             let
                 fx =
                     case route of
                         Home ->
                             [ Http.send (FetchedBroadcasts route)
-                                (Api.fetchHomeBroadcasts model)
+                                (Api.fetchHomeBroadcasts model orderDate)
                             ]
 
                         Explore ->
                             [ Http.send (FetchedBroadcasts route)
-                                (Api.fetchExploreBroadcasts model)
+                                (Api.fetchExploreBroadcasts model orderDate)
                             ]
 
                         _ ->
@@ -171,6 +176,16 @@ update msg model =
         HideOwners ->
             { model | focusedBroadcast = Nothing } ! []
 
+        TimeUpdate time ->
+            { model | time = time } ! []
+
+
+last : List a -> Maybe a
+last xs =
+    xs
+        |> List.drop ((List.length xs) - 1)
+        |> List.head
+
 
 loadOwner : RemoteData Http.Error BroadcastOwner -> Broadcast -> List Broadcast -> List Broadcast
 loadOwner owner b0 bs =
@@ -192,6 +207,7 @@ loginForm ( username, password ) isLoading =
                 [ type_ "text"
                 , placeholder "username"
                 , onInput ChangeUsername
+                , value username
                 ]
                 []
             ]
@@ -200,6 +216,7 @@ loginForm ( username, password ) isLoading =
                 [ type_ "password"
                 , placeholder "password"
                 , onInput ChangePassword
+                , value password
                 ]
                 []
             ]
@@ -299,10 +316,7 @@ broadcastRow model b =
                     [ text b.text ]
     in
         div [ class "broadcast-row" ]
-            [ div
-                attrs
-                children
-            ]
+            [ div attrs children ]
 
 
 broadcastCmp : Broadcast -> Broadcast -> Bool
@@ -319,7 +333,9 @@ renderOwner owner retry =
         Success owner ->
             div []
                 [ text owner.name
-                , span [ class "broadcast-row__username" ] [ text ("@" ++ owner.username) ]
+                , span [ class "broadcast-row__username" ]
+                    [ text ("@" ++ owner.username)
+                    ]
                 ]
 
         _ ->
@@ -327,6 +343,11 @@ renderOwner owner retry =
                 [ text "whoops! an error occurred..."
                 , button [ onClick retry ] [ text "try again" ]
                 ]
+
+
+broadcastNotExpired : Time.Time -> Broadcast -> Bool
+broadcastNotExpired time b =
+    time - (Date.toTime b.createdAt) < (24 * Time.hour)
 
 
 broadcastList : Model -> RemoteCollection Http.Error Broadcast -> Html Msg
@@ -337,13 +358,25 @@ broadcastList model data =
             (text "loading...")
             renderError
             data
-        , div []
-            (data
-                |> RemoteCollection.items
-                |> List.map (broadcastRow model)
-            )
+        , data
+            |> RemoteCollection.items
+            |> List.filter (broadcastNotExpired model.time)
+            |> List.map (broadcastRow model)
+            |> div []
         , RemoteCollection.foldBack
-            (button [] [ text "load more" ])
+            (button
+                [ onClick
+                    (FetchBroadcasts
+                        model.route
+                        (data
+                            |> RemoteCollection.items
+                            |> last
+                            |> Maybe.map .createdAt
+                        )
+                    )
+                ]
+                [ text "load more" ]
+            )
             (text "loading...")
             renderError
             data
@@ -404,4 +437,4 @@ view model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.none
+    Time.every (30.0 * Time.second) TimeUpdate

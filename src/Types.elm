@@ -6,6 +6,7 @@ import Http
 import Date exposing (Date)
 import Dict exposing (Dict)
 import Navigation exposing (Location)
+import Time exposing (Time)
 
 
 type alias BroadcastOwner =
@@ -43,6 +44,7 @@ type alias Model =
     , focusedBroadcast : Maybe Broadcast
     , composeText : String
     , route : Route
+    , time : Time
     }
 
 
@@ -56,7 +58,7 @@ type Route
 type Msg
     = Login String String
     | LoginFinish (Result Http.Error Session)
-    | FetchBroadcasts Route
+    | FetchBroadcasts Route (Maybe Date)
     | FetchedBroadcasts Route (Result Http.Error (List Broadcast))
     | FetchOwner Broadcast
     | FetchedOwner Broadcast (Result Http.Error BroadcastOwner)
@@ -69,3 +71,4 @@ type Msg
     | ReceiveNewBroadcast (Result Http.Error Broadcast)
     | UrlChange Location
     | Push String
+    | TimeUpdate Time
