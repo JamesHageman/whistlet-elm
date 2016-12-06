@@ -1,7 +1,9 @@
 const pathExists = require('path-exists');
 const chalk = require('chalk');
 const webpack = require('webpack');
+const fs = require('fs-extra');
 const config = require('../config/webpack.config.prod');
+const paths =  require('../config/paths');
 
 if (pathExists.sync('elm-package.json') === false) {
   console.log('Please, run the build script from project root directory');
@@ -22,7 +24,16 @@ webpack(config).run(function (err, stats) {
       colors: true
     });
 
+    copyPublicFolder();
+
     console.log(chalk.green('\n' + statsFormatted));
     console.log(chalk.green('\n' + 'Production build is ready in `dist/` folder'));
   }
 });
+
+function copyPublicFolder() {
+  fs.copySync(paths.appPublic, paths.dist, {
+    dereference: true
+  });
+}
+
