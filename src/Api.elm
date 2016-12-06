@@ -6,7 +6,7 @@ import Json.Decode exposing (Decoder, nullable, string, int, field, succeed, fai
 import Json.Decode.Pipeline exposing (decode, required, optional, hardcoded)
 import Json.Encode as JS
 import Date exposing (Date)
-import RemoteData exposing (mapSuccess, withDefault, RemoteData(NotAsked))
+import Data.RemoteData exposing (mapSuccess, withDefault, RemoteData(NotAsked))
 import QueryString
 import Date.Extra exposing (toUtcIsoString)
 

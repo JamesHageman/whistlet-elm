@@ -1,7 +1,7 @@
 module Types exposing (..)
 
-import RemoteData exposing (RemoteData)
-import RemoteCollection exposing (RemoteCollection)
+import Data.RemoteData exposing (RemoteData)
+import Data.RemoteCollection exposing (RemoteCollection)
 import Http
 import Date exposing (Date)
 import Dict exposing (Dict)
@@ -28,6 +28,11 @@ type alias Broadcast =
     , orderDate : Date
     , owner : RemoteData Http.Error BroadcastOwner
     }
+
+
+broadcastCmp : Broadcast -> Broadcast -> Bool
+broadcastCmp b1 b2 =
+    (b1.sourceId == b2.sourceId) && (b1.rebroadcastId == b2.rebroadcastId)
 
 
 type alias Session =

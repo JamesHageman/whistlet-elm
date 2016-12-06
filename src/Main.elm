@@ -1,6 +1,8 @@
 module Main exposing (..)
 
-import App exposing (..)
+import Update exposing (update, init)
+import View exposing (view)
+import Subscriptions exposing (subscriptions)
 import Navigation
 import Types exposing (Model, Msg(UrlChange), Flags)
 

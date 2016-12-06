@@ -1,4 +1,4 @@
-module RemoteCollection
+module Data.RemoteCollection
     exposing
         ( remoteCollection
         , RemoteCollection
