@@ -1,7 +1,7 @@
 module View exposing (view)
 
 import Html exposing (Html, Attribute, span, p, text, div, form, input, button, textarea, h1, a)
-import Html.Attributes exposing (type_, rows, class, placeholder, value, href)
+import Html.Attributes exposing (type_, rows, class, placeholder, value, href, style)
 import Html.Events exposing (onSubmit, onInput, onMouseOver, onMouseOut, onClick, onWithOptions, defaultOptions)
 import Types exposing (Msg(..), Route(..), Model, broadcastCmp, Broadcast, BroadcastOwner)
 import Data.RemoteData exposing (RemoteData(..))
@@ -118,7 +118,15 @@ broadcastRow model b =
         attrs =
             [ cls, showOnHover, hideOnMouseOut ]
 
-        children =
+        broadcastContent =
+            text b.text
+
+        opacity =
+            model.focusedBroadcast
+                |> Maybe.map (always "0")
+                |> Maybe.withDefault "1"
+
+        owner =
             case model.focusedBroadcast of
                 Just b0 ->
                     if broadcastCmp b0 b then
@@ -127,31 +135,39 @@ broadcastRow model b =
                         []
 
                 Nothing ->
-                    [ text b.text ]
+                    []
     in
         div [ class "broadcast-row" ]
-            [ div attrs children ]
+            [ div attrs
+                ([ div
+                    [ style [ ( "opacity", opacity ) ]
+                    ]
+                    [ broadcastContent ]
+                 ]
+                    ++ owner
+                )
+            ]
 
 
 renderOwner : RemoteData Http.Error BroadcastOwner -> Msg -> Html Msg
 renderOwner owner retry =
-    case owner of
-        Loading ->
-            div [] [ text "loading" ]
+    div [ class "broadcast-row__owner" ]
+        (case owner of
+            Loading ->
+                [ text "loading" ]
 
-        Success owner ->
-            div []
+            Success owner ->
                 [ text owner.name
                 , span [ class "broadcast-row__username" ]
                     [ text ("@" ++ owner.username)
                     ]
                 ]
 
-        _ ->
-            div []
+            _ ->
                 [ text "whoops! an error occurred..."
                 , button [ onClick retry ] [ text "try again" ]
                 ]
+        )
 
 
 broadcastNotExpired : Time.Time -> Broadcast -> Bool

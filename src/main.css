@@ -22,21 +22,27 @@ body {
 
 .broadcast-list {
   margin-top: 10px;
-  border: 1px solid #ccc
+  border: 1px solid #ccc;
 }
 
 .broadcast-row {
   min-height: 72px;
   padding: 10px;
   position: relative;
+  white-space: pre;
+  border-bottom: 1px solid #ccc;
 }
 
 .broadcast-row:hover {
   background-color: #ddd;
 }
 
-.broadcast-row__hover-target {
+.broadcast-row__owner {
   position: absolute;
+  top: 10px;
+}
+
+.broadcast-row__hover-target {
   top: 10px;
   bottom: 10px;
   right: 100px;
