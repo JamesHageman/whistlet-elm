@@ -3,6 +3,7 @@ const path = require('path');
 module.exports = {
   entry: path.resolve('./src/index'),
   dist: path.resolve('./dist'),
+  appPublic: path.resolve('./public'),
   template: path.resolve('./src/index.html'),
   favicon: path.resolve('./src/favicon.ico'),
   ownModules: path.resolve(__dirname, '../node_modules'),

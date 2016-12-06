@@ -3,8 +3,12 @@ machine:
     version: 6.1.0
 dependencies:
   cache_directories:
+    - ~/dependencies
     - "elm-stuff"
 test:
   pre:
-    - npm run build
+    - sh circle-deps.sh
+    - ~/dependencies/sysconfcpus/bin/sysconfcpus -n 2 npm run build
+  override:
+    - ~/dependencies/sysconfcpus/bin/sysconfcpus -n 2 npm test
 
