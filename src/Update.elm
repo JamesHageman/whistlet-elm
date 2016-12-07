@@ -90,6 +90,9 @@ update msg model =
             }
                 ! []
 
+        Logout ->
+            model ! [ Ports.logout () ]
+
         FetchBroadcasts route orderDate ->
             let
                 fx =

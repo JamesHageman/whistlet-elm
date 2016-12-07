@@ -82,3 +82,4 @@ type Msg
     | UrlChange Location
     | Push String
     | TimeUpdate Time
+    | Logout

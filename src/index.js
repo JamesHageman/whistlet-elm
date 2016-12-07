@@ -31,3 +31,13 @@ main.ports.saveSession.subscribe(function (session) {
     }
   }
 });
+
+main.ports.logout.subscribe(function () {
+  if (window.localStorage) {
+    try {
+      window.localStorage.removeItem('whistlet:session');
+    } finally {
+      window.location.reload();
+    }
+  }
+})
