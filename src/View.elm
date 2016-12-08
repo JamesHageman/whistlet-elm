@@ -68,9 +68,11 @@ header : Model -> Html Msg
 header model =
     div []
         [ h1 [] [ text "Whistlet" ]
-        , link "/" [] [ text "home" ]
+        , link "/" [] [ text "Home" ]
         , text " | "
-        , link "/explore" [] [ text "explore" ]
+        , link "/explore" [] [ text "Explore" ]
+        , text " | "
+        , a [ href "/", onClick Logout ] [ text "Log out" ]
         ]
 
 
