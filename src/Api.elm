@@ -1,8 +1,16 @@
-module Api exposing (login, fetchHomeBroadcasts, fetchExploreBroadcasts, sendBroadcast, fetchBroadcastOwner)
+module Api
+    exposing
+        ( login
+        , fetchHomeBroadcasts
+        , fetchExploreBroadcasts
+        , sendBroadcast
+        , fetchBroadcastOwner
+        , fetchProfileById
+        )
 
 import Http
-import Types exposing (Model, Broadcast, BroadcastOwner, Session, Msg(LoginFinish))
-import Json.Decode exposing (Decoder, nullable, string, int, field, succeed, fail, andThen, list)
+import Types exposing (Model, Broadcast, BroadcastOwner, Session, Msg(LoginFinish), UserProfile)
+import Json.Decode exposing (Decoder, nullable, string, int, field, succeed, fail, andThen, list, bool)
 import Json.Decode.Pipeline exposing (decode, required, optional, hardcoded)
 import Json.Encode as JS
 import Date exposing (Date)
@@ -18,13 +26,25 @@ baseUrl =
 
 sessionDecoder : Decoder Session
 sessionDecoder =
-    let
-        decoder =
-            decode Session
-                |> required "user_id" int
-                |> required "token" string
-    in
-        field "auth" decoder
+    decode Session
+        |> required "user_id" int
+        |> required "token" string
+        |> field "auth"
+
+
+userProfileDecoder : Decoder UserProfile
+userProfileDecoder =
+    decode UserProfile
+        |> required "name" string
+        |> required "username" string
+        |> required "amp" int
+        |> required "avatar_url" (nullable string)
+        |> required "did_follow" bool
+        |> required "follows_you" bool
+        |> required "followers" int
+        |> required "following" int
+        |> required "created_at" stringToDate
+        |> field "user"
 
 
 login : String -> String -> Http.Request Session
@@ -152,3 +172,13 @@ sendBroadcast model text =
                 |> Http.jsonBody
     in
         Http.post (url "/broadcasts" QueryString.empty model) body (field "broadcast" broadcastDecoder)
+
+
+fetchProfileById : Model -> Int -> Http.Request UserProfile
+fetchProfileById model id =
+    let
+        qs =
+            QueryString.empty
+                |> QueryString.add "id" (toString id)
+    in
+        Http.get (url "/users" qs model) userProfileDecoder

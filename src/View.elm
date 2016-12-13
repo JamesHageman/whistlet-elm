@@ -67,12 +67,33 @@ homePage model =
 header : Model -> Html Msg
 header model =
     div []
-        [ h1 [] [ text "Whistlet" ]
-        , link "/" [] [ text "Home" ]
-        , text " | "
-        , link "/explore" [] [ text "Explore" ]
-        , text " | "
-        , a [ href "/", onClick Logout ] [ text "Log out" ]
+        [ div []
+            [ h1 [] [ text "Whistlet" ]
+            , link "/" [] [ text "Home" ]
+            , text " | "
+            , link "/explore" [] [ text "Explore" ]
+            , text " | "
+            , a [ href "/", onClick Logout ] [ text "Log out" ]
+            ]
+        , div
+            []
+            (case model.me of
+                Success profile ->
+                    [ div [] [ text <| "Signed in as " ++ profile.name ]
+                    , div [] [ text <| (toString profile.amp) ++ "dB" ]
+                    , div [] [ text <| (toString profile.followers) ++ " followers" ]
+                    , div [] [ text <| (toString profile.following) ++ " following" ]
+                    ]
+
+                Failure err ->
+                    [ text <| "Error fetcing profile" ++ (toString err) ]
+
+                Loading ->
+                    [ text "..." ]
+
+                NotAsked ->
+                    [ text "" ]
+            )
         ]
 
 

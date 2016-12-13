@@ -9,4 +9,10 @@ import Types exposing (Model, Msg(UrlChange), Flags)
 
 main : Program Flags Model Msg
 main =
-    Navigation.programWithFlags UrlChange { view = view, init = init, update = update, subscriptions = subscriptions }
+    Navigation.programWithFlags
+        UrlChange
+        { view = view
+        , init = init
+        , update = update
+        , subscriptions = subscriptions
+        }
