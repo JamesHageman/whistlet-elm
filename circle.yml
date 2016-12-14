@@ -4,7 +4,8 @@ machine:
 dependencies:
   cache_directories:
     - ~/dependencies
-    - "elm-stuff"
+    - elm-stuff
+    - tests/elm-stuff
 test:
   pre:
     - sh circle-deps.sh
