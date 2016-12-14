@@ -2,7 +2,7 @@ module Update exposing (update, init)
 
 import Types exposing (Model, Flags, Msg(..), Session, Route(..), Broadcast, BroadcastOwner, broadcastCmp)
 import Data.RemoteCollection as RemoteCollection exposing (RemoteCollection, remoteCollection, loadFront, loadBack, insertFront, insertBack, errorFront, errorBack)
-import Data.RemoteData exposing (RemoteData(Failure, Success, Loading, NotAsked))
+import Data.RemoteData as RemoteData exposing (RemoteData(Failure, Success, Loading, NotAsked))
 import Navigation exposing (Location, newUrl)
 import Tuple exposing (first, second)
 import Task
@@ -11,6 +11,7 @@ import Http
 import Router
 import Api
 import Ports
+import Return
 
 
 getInitialModel : Location -> Model
@@ -23,6 +24,7 @@ getInitialModel location =
     , composeText = ""
     , route = Router.parse location
     , time = 0
+    , me = NotAsked
     }
 
 
@@ -71,17 +73,11 @@ update msg model =
                   ]
 
         LoginFinish (Ok session) ->
-            let
-                new0 =
-                    { model | session = Success session }
-
-                ( new1, fx1 ) =
-                    update (FetchBroadcasts Home Nothing) new0
-
-                ( new2, fx2 ) =
-                    update (FetchBroadcasts Explore Nothing) new1
-            in
-                new2 ! [ fx1, fx2, Ports.saveSession session ]
+            Return.singleton { model | session = Success session }
+                |> Return.andThen (update (FetchBroadcasts Home Nothing))
+                |> Return.andThen (update (FetchBroadcasts Explore Nothing))
+                |> Return.andThen (update (FetchProfileById session.userId))
+                |> Return.command (Ports.saveSession session)
 
         LoginFinish (Err err) ->
             { model
@@ -94,23 +90,21 @@ update msg model =
             model ! [ Ports.logout () ]
 
         FetchBroadcasts route orderDate ->
-            let
-                fx =
-                    case route of
+            updateBroadcasts route RemoteCollection.loadBack model
+                |> Return.singleton
+                |> Return.command
+                    (case route of
                         Home ->
-                            [ Http.send (FetchedBroadcasts route)
-                                (Api.fetchHomeBroadcasts model orderDate)
-                            ]
+                            Http.send (FetchedBroadcasts route)
+                                (Api.fetchHomeBroadcasts model.session orderDate)
 
                         Explore ->
-                            [ Http.send (FetchedBroadcasts route)
-                                (Api.fetchExploreBroadcasts model orderDate)
-                            ]
+                            Http.send (FetchedBroadcasts route)
+                                (Api.fetchExploreBroadcasts model.session orderDate)
 
                         _ ->
-                            []
-            in
-                updateBroadcasts route RemoteCollection.loadBack model ! fx
+                            Cmd.none
+                    )
 
         FetchedBroadcasts route (Ok bs) ->
             updateBroadcasts route (RemoteCollection.insertBack bs) model ! []
@@ -132,7 +126,7 @@ update msg model =
                 | homeBroadcasts = loadFront model.homeBroadcasts
             }
                 ! [ Http.send ReceiveNewBroadcast
-                        (Api.sendBroadcast model text)
+                        (Api.sendBroadcast model.session text)
                   ]
 
         ReceiveNewBroadcast (Ok b) ->
@@ -154,36 +148,30 @@ update msg model =
 
         FetchOwner broadcast ->
             let
-                ( new1, fx1 ) =
+                markBroadcastAsLoading : Model -> Model
+                markBroadcastAsLoading =
                     updateBroadcasts
                         model.route
                         (RemoteCollection.map (loadOwner Loading broadcast))
-                        model
-                        ! [ Http.send
-                                (FetchedOwner broadcast)
-                                (Api.fetchBroadcastOwner broadcast model)
-                          ]
 
-                ( new2, fx2 ) =
-                    update (ShowOwner broadcast) new1
+                fetchOwnerCmd : Cmd Msg
+                fetchOwnerCmd =
+                    Http.send
+                        (FetchedOwner broadcast)
+                        (Api.fetchBroadcastOwner broadcast model.session)
             in
-                new2 ! [ fx1, fx2 ]
+                model
+                    |> markBroadcastAsLoading
+                    |> Return.singleton
+                    |> Return.command fetchOwnerCmd
+                    |> Return.andThen (update (ShowOwner broadcast))
 
         FetchedOwner broadcast res ->
-            let
-                owner =
-                    case res of
-                        Ok x ->
-                            Success x
-
-                        Err x ->
-                            Failure x
-            in
-                updateBroadcasts
-                    model.route
-                    (RemoteCollection.map (loadOwner owner broadcast))
-                    model
-                    ! []
+            updateBroadcasts
+                model.route
+                (RemoteCollection.map (loadOwner (RemoteData.fromResult res) broadcast))
+                model
+                ! []
 
         ShowOwner broadcast ->
             { model | focusedBroadcast = Just broadcast } ! []
@@ -193,6 +181,13 @@ update msg model =
 
         TimeUpdate time ->
             { model | time = time } ! []
+
+        FetchProfileById id ->
+            { model | me = Loading }
+                ! [ Http.send FetchedProfile (Api.fetchProfileById model.session id) ]
+
+        FetchedProfile profile ->
+            { model | me = RemoteData.fromResult profile } ! []
 
 
 loadOwner : RemoteData Http.Error BroadcastOwner -> Broadcast -> List Broadcast -> List Broadcast

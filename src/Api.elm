@@ -1,14 +1,26 @@
-module Api exposing (login, fetchHomeBroadcasts, fetchExploreBroadcasts, sendBroadcast, fetchBroadcastOwner)
+module Api
+    exposing
+        ( login
+        , fetchHomeBroadcasts
+        , fetchExploreBroadcasts
+        , sendBroadcast
+        , fetchBroadcastOwner
+        , fetchProfileById
+        )
 
 import Http
-import Types exposing (Model, Broadcast, BroadcastOwner, Session, Msg(LoginFinish))
-import Json.Decode exposing (Decoder, nullable, string, int, field, succeed, fail, andThen, list)
+import Types exposing (Model, Broadcast, BroadcastOwner, Session, Msg(LoginFinish), UserProfile)
+import Json.Decode exposing (Decoder, nullable, string, int, field, succeed, fail, andThen, list, bool)
 import Json.Decode.Pipeline exposing (decode, required, optional, hardcoded)
 import Json.Encode as JS
 import Date exposing (Date)
 import Data.RemoteData exposing (mapSuccess, withDefault, RemoteData(NotAsked))
 import QueryString
 import Date.Extra exposing (toUtcIsoString)
+
+
+type alias RemoteSession =
+    RemoteData Http.Error Session
 
 
 baseUrl : String
@@ -18,13 +30,25 @@ baseUrl =
 
 sessionDecoder : Decoder Session
 sessionDecoder =
-    let
-        decoder =
-            decode Session
-                |> required "user_id" int
-                |> required "token" string
-    in
-        field "auth" decoder
+    decode Session
+        |> required "user_id" int
+        |> required "token" string
+        |> field "auth"
+
+
+userProfileDecoder : Decoder UserProfile
+userProfileDecoder =
+    decode UserProfile
+        |> required "name" string
+        |> required "username" string
+        |> required "amp" int
+        |> required "avatar_url" (nullable string)
+        |> required "did_follow" bool
+        |> required "follows_you" bool
+        |> required "followers" int
+        |> required "following" int
+        |> required "created_at" stringToDate
+        |> field "user"
 
 
 login : String -> String -> Http.Request Session
@@ -41,11 +65,11 @@ login username password =
         Http.post (baseUrl ++ "/users/login") body sessionDecoder
 
 
-url : String -> QueryString.QueryString -> Model -> String
-url path qs model =
+url : String -> QueryString.QueryString -> RemoteSession -> String
+url path qs session =
     let
         query =
-            model.session
+            session
                 |> mapSuccess
                     (\session ->
                         qs |> QueryString.add "token" session.token
@@ -99,8 +123,8 @@ broadcastsDecoder =
         |> field "broadcasts"
 
 
-fetchBroadcasts : String -> Model -> Maybe Date -> Http.Request (List Broadcast)
-fetchBroadcasts page model orderDate =
+fetchBroadcasts : String -> RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
+fetchBroadcasts page session orderDate =
     let
         query =
             case orderDate of
@@ -112,20 +136,20 @@ fetchBroadcasts page model orderDate =
                 Nothing ->
                     QueryString.empty
     in
-        Http.get (url ("/broadcasts/" ++ page) query model) broadcastsDecoder
+        Http.get (url ("/broadcasts/" ++ page) query session) broadcastsDecoder
 
 
-fetchHomeBroadcasts : Model -> Maybe Date -> Http.Request (List Broadcast)
+fetchHomeBroadcasts : RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
 fetchHomeBroadcasts =
     fetchBroadcasts "home"
 
 
-fetchExploreBroadcasts : Model -> Maybe Date -> Http.Request (List Broadcast)
+fetchExploreBroadcasts : RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
 fetchExploreBroadcasts =
     fetchBroadcasts "explore"
 
 
-fetchBroadcastOwner : Broadcast -> Model -> Http.Request BroadcastOwner
+fetchBroadcastOwner : Broadcast -> RemoteSession -> Http.Request BroadcastOwner
 fetchBroadcastOwner b model =
     let
         query0 =
@@ -142,7 +166,7 @@ fetchBroadcastOwner b model =
         Http.get (url "/social/broadcast_owner" query model) broadcastOwnerDecoder
 
 
-sendBroadcast : Model -> String -> Http.Request Broadcast
+sendBroadcast : RemoteSession -> String -> Http.Request Broadcast
 sendBroadcast model text =
     let
         body =
@@ -152,3 +176,13 @@ sendBroadcast model text =
                 |> Http.jsonBody
     in
         Http.post (url "/broadcasts" QueryString.empty model) body (field "broadcast" broadcastDecoder)
+
+
+fetchProfileById : RemoteSession -> Int -> Http.Request UserProfile
+fetchProfileById model id =
+    let
+        qs =
+            QueryString.empty
+                |> QueryString.add "id" (toString id)
+    in
+        Http.get (url "/users" qs model) userProfileDecoder

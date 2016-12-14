@@ -1,4 +1,12 @@
-module Data.RemoteData exposing (RemoteData(..), mapSuccess, toMaybe, withDefault)
+module Data.RemoteData
+    exposing
+        ( RemoteData(..)
+        , mapSuccess
+        , toMaybe
+        , withDefault
+        , fromResult
+        , andThen
+        )
 
 
 type RemoteData err data
@@ -42,3 +50,29 @@ withDefault a rd =
 
         _ ->
             a
+
+
+fromResult : Result x a -> RemoteData x a
+fromResult x =
+    case x of
+        Ok data ->
+            Success data
+
+        Err err ->
+            Failure err
+
+
+andThen : (a -> RemoteData x b) -> RemoteData x a -> RemoteData x b
+andThen f data =
+    case data of
+        Success a ->
+            f a
+
+        Failure err ->
+            Failure err
+
+        Loading ->
+            Loading
+
+        NotAsked ->
+            NotAsked

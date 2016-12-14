@@ -30,6 +30,19 @@ type alias Broadcast =
     }
 
 
+type alias UserProfile =
+    { name : String
+    , username : String
+    , amp : Int
+    , avatarUrl : Maybe String
+    , didFollow : Bool
+    , followsYou : Bool
+    , followers : Int
+    , following : Int
+    , createdAt : Date
+    }
+
+
 broadcastCmp : Broadcast -> Broadcast -> Bool
 broadcastCmp b1 b2 =
     (b1.sourceId == b2.sourceId) && (b1.rebroadcastId == b2.rebroadcastId)
@@ -55,6 +68,7 @@ type alias Model =
     , composeText : String
     , route : Route
     , time : Time
+    , me : RemoteData Http.Error UserProfile
     }
 
 
@@ -83,3 +97,5 @@ type Msg
     | Push String
     | TimeUpdate Time
     | Logout
+    | FetchProfileById Int
+    | FetchedProfile (Result Http.Error UserProfile)
