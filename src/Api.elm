@@ -19,6 +19,10 @@ import QueryString
 import Date.Extra exposing (toUtcIsoString)
 
 
+type alias RemoteSession =
+    RemoteData Http.Error Session
+
+
 baseUrl : String
 baseUrl =
     "https://api.whistlet.com/v1"
@@ -61,11 +65,11 @@ login username password =
         Http.post (baseUrl ++ "/users/login") body sessionDecoder
 
 
-url : String -> QueryString.QueryString -> Model -> String
-url path qs model =
+url : String -> QueryString.QueryString -> RemoteSession -> String
+url path qs session =
     let
         query =
-            model.session
+            session
                 |> mapSuccess
                     (\session ->
                         qs |> QueryString.add "token" session.token
@@ -119,8 +123,8 @@ broadcastsDecoder =
         |> field "broadcasts"
 
 
-fetchBroadcasts : String -> Model -> Maybe Date -> Http.Request (List Broadcast)
-fetchBroadcasts page model orderDate =
+fetchBroadcasts : String -> RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
+fetchBroadcasts page session orderDate =
     let
         query =
             case orderDate of
@@ -132,20 +136,20 @@ fetchBroadcasts page model orderDate =
                 Nothing ->
                     QueryString.empty
     in
-        Http.get (url ("/broadcasts/" ++ page) query model) broadcastsDecoder
+        Http.get (url ("/broadcasts/" ++ page) query session) broadcastsDecoder
 
 
-fetchHomeBroadcasts : Model -> Maybe Date -> Http.Request (List Broadcast)
+fetchHomeBroadcasts : RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
 fetchHomeBroadcasts =
     fetchBroadcasts "home"
 
 
-fetchExploreBroadcasts : Model -> Maybe Date -> Http.Request (List Broadcast)
+fetchExploreBroadcasts : RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
 fetchExploreBroadcasts =
     fetchBroadcasts "explore"
 
 
-fetchBroadcastOwner : Broadcast -> Model -> Http.Request BroadcastOwner
+fetchBroadcastOwner : Broadcast -> RemoteSession -> Http.Request BroadcastOwner
 fetchBroadcastOwner b model =
     let
         query0 =
@@ -162,7 +166,7 @@ fetchBroadcastOwner b model =
         Http.get (url "/social/broadcast_owner" query model) broadcastOwnerDecoder
 
 
-sendBroadcast : Model -> String -> Http.Request Broadcast
+sendBroadcast : RemoteSession -> String -> Http.Request Broadcast
 sendBroadcast model text =
     let
         body =
@@ -174,7 +178,7 @@ sendBroadcast model text =
         Http.post (url "/broadcasts" QueryString.empty model) body (field "broadcast" broadcastDecoder)
 
 
-fetchProfileById : Model -> Int -> Http.Request UserProfile
+fetchProfileById : RemoteSession -> Int -> Http.Request UserProfile
 fetchProfileById model id =
     let
         qs =

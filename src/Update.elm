@@ -96,11 +96,11 @@ update msg model =
                     (case route of
                         Home ->
                             Http.send (FetchedBroadcasts route)
-                                (Api.fetchHomeBroadcasts model orderDate)
+                                (Api.fetchHomeBroadcasts model.session orderDate)
 
                         Explore ->
                             Http.send (FetchedBroadcasts route)
-                                (Api.fetchExploreBroadcasts model orderDate)
+                                (Api.fetchExploreBroadcasts model.session orderDate)
 
                         _ ->
                             Cmd.none
@@ -126,7 +126,7 @@ update msg model =
                 | homeBroadcasts = loadFront model.homeBroadcasts
             }
                 ! [ Http.send ReceiveNewBroadcast
-                        (Api.sendBroadcast model text)
+                        (Api.sendBroadcast model.session text)
                   ]
 
         ReceiveNewBroadcast (Ok b) ->
@@ -158,7 +158,7 @@ update msg model =
                 fetchOwnerCmd =
                     Http.send
                         (FetchedOwner broadcast)
-                        (Api.fetchBroadcastOwner broadcast model)
+                        (Api.fetchBroadcastOwner broadcast model.session)
             in
                 model
                     |> markBroadcastAsLoading
@@ -184,7 +184,7 @@ update msg model =
 
         FetchProfileById id ->
             { model | me = Loading }
-                ! [ Http.send FetchedProfile (Api.fetchProfileById model id) ]
+                ! [ Http.send FetchedProfile (Api.fetchProfileById model.session id) ]
 
         FetchedProfile profile ->
             { model | me = RemoteData.fromResult profile } ! []
