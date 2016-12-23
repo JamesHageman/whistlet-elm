@@ -159,8 +159,8 @@ profilePage username model =
         Nothing ->
             div [] [ text "initializing..." ]
 
-        Just { profile, broadcasts } ->
-            case profile of
+        Just remoteProfile ->
+            case remoteProfile of
                 Failure (Http.BadStatus { status }) ->
                     if status.code == 404 then
                         div [] [ text (username ++ " is not a registered user") ]
@@ -176,14 +176,17 @@ profilePage username model =
                 NotAsked ->
                     div [] [ text "..." ]
 
-                Success profile ->
+                Success { profile, broadcasts } ->
                     div []
                         [ h1 [] [ text (profile.name) ]
                         , div []
                             [ text ((toString profile.followersCount) ++ " followers ")
                             , text ((toString profile.followingCount) ++ " following")
+                            , renderBroadcastList
+                                (ProfilePageBroadcastsMsg username)
+                                broadcasts
+                                model
                             ]
-                          --               , broadcastList model broadcasts
                         ]
 
 

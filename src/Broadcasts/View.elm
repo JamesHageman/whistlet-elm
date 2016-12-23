@@ -110,9 +110,6 @@ renderOwner : Props msg -> RemoteData Http.Error BroadcastOwner -> msg -> Html m
 renderOwner props owner retry =
     div [ class "broadcast-row__owner" ]
         (case owner of
-            Loading ->
-                [ text "loading" ]
-
             Success owner ->
                 [ text owner.name
                 , props.link ("/profile/" ++ owner.username)
@@ -121,10 +118,20 @@ renderOwner props owner retry =
                     ]
                 ]
 
-            _ ->
-                [ text "whoops! an error occurred..."
-                , button [ onClick retry ] [ text "try again" ]
-                ]
+            Failure err ->
+                let
+                    _ =
+                        Debug.log "BroadcastOwner error: " err
+                in
+                    [ text "whoops! an error occurred..."
+                    , button [ onClick retry ] [ text "try again" ]
+                    ]
+
+            Loading ->
+                [ text "loading" ]
+
+            NotAsked ->
+                [ text "initializing" ]
         )
 
 
