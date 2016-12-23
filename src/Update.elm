@@ -55,20 +55,23 @@ init { session } location =
                 Just session ->
                     getInitialModel location
                         |> update (LoginFinish (Ok session))
-                        |> Return.command
-                            (Broadcasts.Model.load
-                                (Api.fetchHomeBroadcasts (Success session) Nothing)
-                                |> Cmd.map HomeBroadcastsMsg
-                            )
-                        |> Return.command
-                            (Broadcasts.Model.load
-                                (Api.fetchExploreBroadcasts (Success session) Nothing)
-                                |> Cmd.map ExploreBroadcastsMsg
-                            )
     in
         model
             ! [ fx, Task.perform TimeUpdate Time.now ]
             |> Return.andThen (loadRoute Nothing model.route)
+
+
+loginActions : Session -> Cmd Msg
+loginActions session =
+    Cmd.batch
+        [ Broadcasts.Model.load
+            (Api.fetchHomeBroadcasts (Success session) Nothing)
+            |> Cmd.map HomeBroadcastsMsg
+        , Broadcasts.Model.load
+            (Api.fetchExploreBroadcasts (Success session) Nothing)
+            |> Cmd.map ExploreBroadcastsMsg
+        , Ports.saveSession session
+        ]
 
 
 updateBroadcasts : BroadcastsMsg -> Model -> ( Model, Cmd Msg )
@@ -155,7 +158,7 @@ update msg model =
         LoginFinish (Ok session) ->
             Return.singleton { model | session = Success session }
                 |> Return.andThen (update (FetchProfileById session.userId))
-                |> Return.command (Ports.saveSession session)
+                |> Return.command (loginActions session)
 
         LoginFinish (Err err) ->
             { model
