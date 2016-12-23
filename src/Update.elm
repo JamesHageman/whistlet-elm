@@ -12,6 +12,7 @@ import Types
         , BroadcastOwner
         , broadcastCmp
         , ProfilePageState
+        , Profile
         )
 import Data.RemoteCollection as RemoteCollection exposing (RemoteCollection)
 import Data.RemoteData as RemoteData exposing (RemoteData(Failure, Success, Loading, NotAsked))
@@ -24,7 +25,6 @@ import Router
 import Api
 import Ports
 import Return
-import Date exposing (Date)
 import Dict
 import Broadcasts.Model
 
@@ -79,32 +79,42 @@ updateBroadcasts subMsg model =
         |> Return.andThen (updateExploreBroadcasts subMsg)
 
 
-profilePageLoadingState : ProfilePageState
-profilePageLoadingState =
-    { broadcasts = Broadcasts.Model.init
-    , followers = RemoteCollection.empty
-    , following = RemoteCollection.empty
-    , profile = Loading
-    }
+profilePageEmptyState : Profile -> ProfilePageState
+profilePageEmptyState profile =
+    Success
+        { broadcasts = Broadcasts.Model.init
+        , followers = RemoteCollection.empty
+        , following = RemoteCollection.empty
+        , profile = profile
+        }
 
 
-profilePageLoadingFx : Model -> String -> Cmd Msg
-profilePageLoadingFx model username =
-    Http.send
-        (FetchedOtherProfile username)
-        (Api.fetchProfileByUsername model.session username)
+loadProfilePage : Model -> String -> ProfilePageState -> ( ProfilePageState, Cmd Msg )
+loadProfilePage model username profilePage =
+    case profilePage of
+        Success state ->
+            profilePage ! []
+
+        Loading ->
+            profilePage ! []
+
+        _ ->
+            profilePage
+                ! [ Http.send
+                        (FetchedOtherProfile username)
+                        (Api.fetchProfileByUsername model.session username)
+                  ]
 
 
 loadProfile : String -> Model -> ( Model, Cmd Msg )
 loadProfile username model =
     let
         ( newProfile, fx ) =
-            case Dict.get username model.profiles of
-                Nothing ->
-                    ( profilePageLoadingState, profilePageLoadingFx model username )
-
-                Just profile ->
-                    ( profile, Cmd.none )
+            model.profiles
+                |> Dict.get username
+                |> Maybe.withDefault NotAsked
+                |> Return.singleton
+                |> Return.andThen (loadProfilePage model username)
     in
         { model
             | profiles = model.profiles |> Dict.insert username newProfile
@@ -216,21 +226,28 @@ update msg model =
         FetchedMyProfile profile ->
             { model | me = RemoteData.fromResult profile } ! []
 
-        FetchedOtherProfile username profile ->
-            { model
-                | profiles =
-                    model.profiles
-                        |> Dict.update username
-                            (\state ->
-                                case state of
-                                    Just state ->
-                                        Just { state | profile = RemoteData.fromResult profile }
+        FetchedOtherProfile username profileResult ->
+            let
+                newPage : ProfilePageState
+                newPage =
+                    profileResult
+                        |> RemoteData.fromResult
+                        |> RemoteData.andThen profilePageEmptyState
 
-                                    Nothing ->
-                                        Just { profilePageLoadingState | profile = RemoteData.fromResult profile }
-                            )
-            }
-                ! []
+                newProfiles =
+                    Dict.insert username newPage model.profiles
+
+                fetchBroadcastsCmd =
+                    case profileResult of
+                        Ok profile ->
+                            Broadcasts.Model.load
+                                (Api.fetchProfileBroadcasts profile.id model.session Nothing)
+                                |> Cmd.map (ProfilePageBroadcastsMsg username)
+
+                        Err _ ->
+                            Cmd.none
+            in
+                { model | profiles = newProfiles } ! [ fetchBroadcastsCmd ]
 
         HomeBroadcastsMsg msg ->
             updateHomeBroadcasts msg model
@@ -247,7 +264,7 @@ update msg model =
             updateExploreBroadcasts msg model
 
         ProfilePageBroadcastsMsg username msg ->
-            model ! []
+            updateProfilePageBroadcasts username msg model
 
 
 updateHomeBroadcasts : BroadcastsMsg -> Model -> ( Model, Cmd Msg )
@@ -272,3 +289,31 @@ updateExploreBroadcasts msg model =
             Broadcasts.Model.update updateProps msg model.exploreBroadcasts
     in
         { model | exploreBroadcasts = broadcasts } ! [ fx |> Cmd.map ExploreBroadcastsMsg ]
+
+
+updateProfilePageBroadcasts : String -> BroadcastsMsg -> Model -> ( Model, Cmd Msg )
+updateProfilePageBroadcasts username msg model =
+    case Dict.get username model.profiles of
+        Just (Success profilePage) ->
+            let
+                updateProps =
+                    { fetchBroadcasts = Api.fetchProfileBroadcasts profilePage.profile.id model.session }
+
+                ( broadcasts, fx ) =
+                    Broadcasts.Model.update updateProps msg profilePage.broadcasts
+
+                newProfilePage : ProfilePageState
+                newProfilePage =
+                    Success
+                        { profilePage | broadcasts = broadcasts }
+
+                wrappedFx =
+                    Cmd.map (ProfilePageBroadcastsMsg username) fx
+
+                newModel =
+                    { model | profiles = Dict.insert username newProfilePage model.profiles }
+            in
+                newModel ! [ wrappedFx ]
+
+        _ ->
+            model ! []

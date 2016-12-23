@@ -45,7 +45,8 @@ type alias Broadcast =
 
 
 type alias Profile =
-    { name : String
+    { id : Int
+    , name : String
     , username : String
     , amp : Int
     , avatarUrl : Maybe String
@@ -73,12 +74,18 @@ type alias Flags =
     }
 
 
+{-| Why is this whole type a RemoteData? Becuase we need the profile to exist
+in order to fetch the followers and broadcasts. If ProfilePageState was a
+record containing a RemoteData Profile, then there could be a state where the
+broadcasts existed, but the profile did not.
+-}
 type alias ProfilePageState =
-    { broadcasts : RemoteCollection Http.Error Broadcast
-    , followers : RemoteCollection Http.Error Profile
-    , following : RemoteCollection Http.Error Profile
-    , profile : RemoteData Http.Error Profile
-    }
+    RemoteData Http.Error
+        { profile : Profile
+        , broadcasts : RemoteCollection Http.Error Broadcast
+        , followers : RemoteCollection Http.Error Profile
+        , following : RemoteCollection Http.Error Profile
+        }
 
 
 type alias Model =

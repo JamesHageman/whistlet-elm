@@ -3,6 +3,7 @@ module Api
         ( login
         , fetchHomeBroadcasts
         , fetchExploreBroadcasts
+        , fetchProfileBroadcasts
         , sendBroadcast
         , fetchBroadcastOwner
         , fetchProfileById
@@ -16,7 +17,7 @@ import Json.Decode.Pipeline exposing (decode, required, optional, hardcoded)
 import Json.Encode as JS
 import Date exposing (Date)
 import Data.RemoteData exposing (mapSuccess, withDefault, RemoteData(NotAsked))
-import QueryString
+import QueryString exposing (QueryString)
 import Date.Extra exposing (toUtcIsoString)
 
 
@@ -40,6 +41,7 @@ sessionDecoder =
 userProfileDecoder : Decoder Profile
 userProfileDecoder =
     decode Profile
+        |> required "id" int
         |> required "name" string
         |> required "username" string
         |> required "amp" int
@@ -124,30 +126,35 @@ broadcastsDecoder =
         |> field "broadcasts"
 
 
-fetchBroadcasts : String -> RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
-fetchBroadcasts page session orderDate =
+fetchBroadcasts : String -> QueryString -> RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
+fetchBroadcasts page qs session orderDate =
     let
         query =
             case orderDate of
                 Just date ->
-                    QueryString.empty
+                    qs
                         |> QueryString.add "order_date"
                             (toUtcIsoString date)
 
                 Nothing ->
-                    QueryString.empty
+                    qs
     in
         Http.get (url ("/broadcasts/" ++ page) query session) broadcastsDecoder
 
 
 fetchHomeBroadcasts : RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
 fetchHomeBroadcasts =
-    fetchBroadcasts "home"
+    fetchBroadcasts "home" QueryString.empty
 
 
 fetchExploreBroadcasts : RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
 fetchExploreBroadcasts =
-    fetchBroadcasts "explore"
+    fetchBroadcasts "explore" QueryString.empty
+
+
+fetchProfileBroadcasts : Int -> RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
+fetchProfileBroadcasts id =
+    fetchBroadcasts "profile" (QueryString.empty |> QueryString.add "id" (toString id))
 
 
 fetchBroadcastOwner : Broadcast -> RemoteSession -> Http.Request BroadcastOwner
