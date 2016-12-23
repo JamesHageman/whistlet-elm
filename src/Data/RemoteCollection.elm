@@ -1,6 +1,6 @@
 module Data.RemoteCollection
     exposing
-        ( remoteCollection
+        ( empty
         , RemoteCollection
         , loadFront
         , loadBack
@@ -29,8 +29,8 @@ type RemoteCollection err a
         }
 
 
-remoteCollection : RemoteCollection x a
-remoteCollection =
+empty : RemoteCollection x a
+empty =
     RemoteCollection
         { data = []
         , frontStatus = NotAsked
