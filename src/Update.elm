@@ -58,7 +58,6 @@ init { session } location =
     in
         model
             ! [ fx, Task.perform TimeUpdate Time.now ]
-            |> Return.andThen (loadRoute Nothing model.route)
 
 
 loginActions : Session -> Cmd Msg
@@ -149,9 +148,10 @@ update msg model =
                   ]
 
         LoginFinish (Ok session) ->
-            Return.singleton { model | session = Success session }
+            Return.singleton { model | session = Success session, loginForm = ( "", "" ) }
                 |> Return.andThen (update (FetchProfileById session.userId))
                 |> Return.command (loginActions session)
+                |> Return.andThen (loadRoute Nothing model.route)
 
         LoginFinish (Err err) ->
             { model
