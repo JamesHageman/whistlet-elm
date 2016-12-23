@@ -22,6 +22,7 @@ renderBroadcastList f broadcasts model =
         , showOwner = ShowOwner
         , fetchOwner = FetchOwner
         , hideOwners = HideOwners
+        , link = link
         }
         broadcasts
 
