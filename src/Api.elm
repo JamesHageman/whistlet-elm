@@ -6,10 +6,11 @@ module Api
         , sendBroadcast
         , fetchBroadcastOwner
         , fetchProfileById
+        , fetchProfileByUsername
         )
 
 import Http
-import Types exposing (Model, Broadcast, BroadcastOwner, Session, Msg(LoginFinish), UserProfile)
+import Types exposing (Broadcast, BroadcastOwner, Session, Msg(LoginFinish), Profile)
 import Json.Decode exposing (Decoder, nullable, string, int, field, succeed, fail, andThen, list, bool)
 import Json.Decode.Pipeline exposing (decode, required, optional, hardcoded)
 import Json.Encode as JS
@@ -36,9 +37,9 @@ sessionDecoder =
         |> field "auth"
 
 
-userProfileDecoder : Decoder UserProfile
+userProfileDecoder : Decoder Profile
 userProfileDecoder =
-    decode UserProfile
+    decode Profile
         |> required "name" string
         |> required "username" string
         |> required "amp" int
@@ -150,7 +151,7 @@ fetchExploreBroadcasts =
 
 
 fetchBroadcastOwner : Broadcast -> RemoteSession -> Http.Request BroadcastOwner
-fetchBroadcastOwner b model =
+fetchBroadcastOwner b session =
     let
         query0 =
             QueryString.empty
@@ -163,11 +164,11 @@ fetchBroadcastOwner b model =
                 query0
                     |> QueryString.add "rebroadcast_id" (toString b.rebroadcastId)
     in
-        Http.get (url "/social/broadcast_owner" query model) broadcastOwnerDecoder
+        Http.get (url "/social/broadcast_owner" query session) broadcastOwnerDecoder
 
 
 sendBroadcast : RemoteSession -> String -> Http.Request Broadcast
-sendBroadcast model text =
+sendBroadcast session text =
     let
         body =
             JS.object
@@ -175,14 +176,24 @@ sendBroadcast model text =
                 ]
                 |> Http.jsonBody
     in
-        Http.post (url "/broadcasts" QueryString.empty model) body (field "broadcast" broadcastDecoder)
+        Http.post (url "/broadcasts" QueryString.empty session) body (field "broadcast" broadcastDecoder)
 
 
-fetchProfileById : RemoteSession -> Int -> Http.Request UserProfile
-fetchProfileById model id =
+fetchProfileById : RemoteSession -> Int -> Http.Request Profile
+fetchProfileById session id =
     let
         qs =
             QueryString.empty
                 |> QueryString.add "id" (toString id)
     in
-        Http.get (url "/users" qs model) userProfileDecoder
+        Http.get (url "/users" qs session) userProfileDecoder
+
+
+fetchProfileByUsername : RemoteSession -> String -> Http.Request Profile
+fetchProfileByUsername session username =
+    let
+        qs =
+            QueryString.empty
+                |> QueryString.add "username" username
+    in
+        Http.get (url "/users" qs session) userProfileDecoder

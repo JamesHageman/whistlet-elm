@@ -1,7 +1,19 @@
 module Update exposing (update, init)
 
-import Types exposing (Model, Flags, Msg(..), Session, Route(..), Broadcast, BroadcastOwner, broadcastCmp)
-import Data.RemoteCollection as RemoteCollection exposing (RemoteCollection, remoteCollection, loadFront, loadBack, insertFront, insertBack, errorFront, errorBack)
+import Types
+    exposing
+        ( Model
+        , Flags
+        , Msg(..)
+        , BroadcastsMsg(ReceiveNewBroadcast, ReceiveOwner, LoadOwner, SendNewBroadcast)
+        , Session
+        , Route(..)
+        , Broadcast
+        , BroadcastOwner
+        , broadcastCmp
+        , ProfilePageState
+        )
+import Data.RemoteCollection as RemoteCollection exposing (RemoteCollection)
 import Data.RemoteData as RemoteData exposing (RemoteData(Failure, Success, Loading, NotAsked))
 import Navigation exposing (Location, newUrl)
 import Tuple exposing (first, second)
@@ -12,19 +24,23 @@ import Router
 import Api
 import Ports
 import Return
+import Date exposing (Date)
+import Dict
+import Broadcasts.Model
 
 
 getInitialModel : Location -> Model
 getInitialModel location =
     { session = NotAsked
     , loginForm = ( "", "" )
-    , homeBroadcasts = remoteCollection
-    , exploreBroadcasts = remoteCollection
+    , homeBroadcasts = Broadcasts.Model.init
+    , exploreBroadcasts = Broadcasts.Model.init
     , focusedBroadcast = Nothing
     , composeText = ""
     , route = Router.parse location
     , time = 0
     , me = NotAsked
+    , profiles = Dict.fromList []
     }
 
 
@@ -39,32 +55,86 @@ init { session } location =
                 Just session ->
                     getInitialModel location
                         |> update (LoginFinish (Ok session))
+                        |> Return.command
+                            (Broadcasts.Model.load
+                                (Api.fetchHomeBroadcasts (Success session) Nothing)
+                                |> Cmd.map HomeBroadcastsMsg
+                            )
+                        |> Return.command
+                            (Broadcasts.Model.load
+                                (Api.fetchExploreBroadcasts (Success session) Nothing)
+                                |> Cmd.map ExploreBroadcastsMsg
+                            )
     in
-        model ! [ fx, Task.perform TimeUpdate Time.now ]
+        model
+            ! [ fx, Task.perform TimeUpdate Time.now ]
+            |> Return.andThen (loadRoute Nothing model.route)
 
 
-updateBroadcasts :
-    Route
-    -> (RemoteCollection Http.Error Broadcast -> RemoteCollection Http.Error Broadcast)
-    -> Model
-    -> Model
-updateBroadcasts route f model =
-    case route of
-        Home ->
-            { model | homeBroadcasts = f model.homeBroadcasts }
+updateBroadcasts : BroadcastsMsg -> Model -> ( Model, Cmd Msg )
+updateBroadcasts subMsg model =
+    model
+        ! []
+        |> Return.andThen (updateHomeBroadcasts subMsg)
+        |> Return.andThen (updateExploreBroadcasts subMsg)
 
-        Explore ->
-            { model | exploreBroadcasts = f model.exploreBroadcasts }
 
-        _ ->
-            model
+profilePageLoadingState : ProfilePageState
+profilePageLoadingState =
+    { broadcasts = Broadcasts.Model.init
+    , followers = RemoteCollection.empty
+    , following = RemoteCollection.empty
+    , profile = Loading
+    }
+
+
+profilePageLoadingFx : Model -> String -> Cmd Msg
+profilePageLoadingFx model username =
+    Http.send
+        (FetchedOtherProfile username)
+        (Api.fetchProfileByUsername model.session username)
+
+
+loadProfile : String -> Model -> ( Model, Cmd Msg )
+loadProfile username model =
+    let
+        ( newProfile, fx ) =
+            case Dict.get username model.profiles of
+                Nothing ->
+                    ( profilePageLoadingState, profilePageLoadingFx model username )
+
+                Just profile ->
+                    ( profile, Cmd.none )
+    in
+        { model
+            | profiles = model.profiles |> Dict.insert username newProfile
+        }
+            ! [ fx ]
+
+
+loadRoute : Maybe Route -> Route -> Model -> ( Model, Cmd Msg )
+loadRoute prevRoute route model =
+    if prevRoute == Just route then
+        model ! []
+    else
+        case route of
+            ProfilePage username ->
+                loadProfile username model
+
+            _ ->
+                model ! []
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case Debug.log "msg" msg of
         UrlChange location ->
-            { model | route = Router.parse location } ! []
+            let
+                route =
+                    Router.parse location
+            in
+                Return.singleton { model | route = Router.parse location }
+                    |> Return.andThen (loadRoute (Just model.route) route)
 
         Login username password ->
             { model | session = Loading }
@@ -74,8 +144,6 @@ update msg model =
 
         LoginFinish (Ok session) ->
             Return.singleton { model | session = Success session }
-                |> Return.andThen (update (FetchBroadcasts Home Nothing))
-                |> Return.andThen (update (FetchBroadcasts Explore Nothing))
                 |> Return.andThen (update (FetchProfileById session.userId))
                 |> Return.command (Ports.saveSession session)
 
@@ -89,29 +157,6 @@ update msg model =
         Logout ->
             model ! [ Ports.logout () ]
 
-        FetchBroadcasts route orderDate ->
-            updateBroadcasts route RemoteCollection.loadBack model
-                |> Return.singleton
-                |> Return.command
-                    (case route of
-                        Home ->
-                            Http.send (FetchedBroadcasts route)
-                                (Api.fetchHomeBroadcasts model.session orderDate)
-
-                        Explore ->
-                            Http.send (FetchedBroadcasts route)
-                                (Api.fetchExploreBroadcasts model.session orderDate)
-
-                        _ ->
-                            Cmd.none
-                    )
-
-        FetchedBroadcasts route (Ok bs) ->
-            updateBroadcasts route (RemoteCollection.insertBack bs) model ! []
-
-        FetchedBroadcasts route (Err err) ->
-            updateBroadcasts route (RemoteCollection.errorBack err) model ! []
-
         ChangeUsername username ->
             { model | loginForm = ( username, second model.loginForm ) } ! []
 
@@ -122,37 +167,21 @@ update msg model =
             { model | composeText = text } ! []
 
         SendBroadcast text ->
-            { model
-                | homeBroadcasts = loadFront model.homeBroadcasts
-            }
-                ! [ Http.send ReceiveNewBroadcast
+            model
+                ! [ Http.send (HomeBroadcastsMsg << Types.ReceiveNewBroadcast)
                         (Api.sendBroadcast model.session text)
                   ]
-
-        ReceiveNewBroadcast (Ok b) ->
-            { model
-                | homeBroadcasts =
-                    insertFront [ b ] model.homeBroadcasts
-                , composeText = ""
-            }
-                ! []
-
-        ReceiveNewBroadcast (Err err) ->
-            { model
-                | homeBroadcasts = errorFront err model.homeBroadcasts
-            }
-                ! []
+                |> Return.andThen (update (HomeBroadcastsMsg SendNewBroadcast))
 
         Push url ->
             model ! [ newUrl url ]
 
         FetchOwner broadcast ->
             let
-                markBroadcastAsLoading : Model -> Model
+                markBroadcastAsLoading : Model -> ( Model, Cmd Msg )
                 markBroadcastAsLoading =
                     updateBroadcasts
-                        model.route
-                        (RemoteCollection.map (loadOwner Loading broadcast))
+                        (LoadOwner broadcast)
 
                 fetchOwnerCmd : Cmd Msg
                 fetchOwnerCmd =
@@ -161,17 +190,15 @@ update msg model =
                         (Api.fetchBroadcastOwner broadcast model.session)
             in
                 model
-                    |> markBroadcastAsLoading
                     |> Return.singleton
+                    |> Return.andThen markBroadcastAsLoading
                     |> Return.command fetchOwnerCmd
                     |> Return.andThen (update (ShowOwner broadcast))
 
         FetchedOwner broadcast res ->
             updateBroadcasts
-                model.route
-                (RemoteCollection.map (loadOwner (RemoteData.fromResult res) broadcast))
+                (ReceiveOwner broadcast res)
                 model
-                ! []
 
         ShowOwner broadcast ->
             { model | focusedBroadcast = Just broadcast } ! []
@@ -184,19 +211,64 @@ update msg model =
 
         FetchProfileById id ->
             { model | me = Loading }
-                ! [ Http.send FetchedProfile (Api.fetchProfileById model.session id) ]
+                ! [ Http.send FetchedMyProfile (Api.fetchProfileById model.session id) ]
 
-        FetchedProfile profile ->
+        FetchedMyProfile profile ->
             { model | me = RemoteData.fromResult profile } ! []
 
+        FetchedOtherProfile username profile ->
+            { model
+                | profiles =
+                    model.profiles
+                        |> Dict.update username
+                            (\state ->
+                                case state of
+                                    Just state ->
+                                        Just { state | profile = RemoteData.fromResult profile }
 
-loadOwner : RemoteData Http.Error BroadcastOwner -> Broadcast -> List Broadcast -> List Broadcast
-loadOwner owner b0 bs =
-    bs
-        |> List.map
-            (\b ->
-                if broadcastCmp b b0 then
-                    { b | owner = owner }
-                else
-                    b
-            )
+                                    Nothing ->
+                                        Just { profilePageLoadingState | profile = RemoteData.fromResult profile }
+                            )
+            }
+                ! []
+
+        HomeBroadcastsMsg msg ->
+            updateHomeBroadcasts msg model
+                |> Return.map
+                    (case msg of
+                        ReceiveNewBroadcast _ ->
+                            (\model -> { model | composeText = "" })
+
+                        _ ->
+                            identity
+                    )
+
+        ExploreBroadcastsMsg msg ->
+            updateExploreBroadcasts msg model
+
+        ProfilePageBroadcastsMsg username msg ->
+            model ! []
+
+
+updateHomeBroadcasts : BroadcastsMsg -> Model -> ( Model, Cmd Msg )
+updateHomeBroadcasts msg model =
+    let
+        updateProps =
+            { fetchBroadcasts = Api.fetchHomeBroadcasts model.session }
+
+        ( broadcasts, fx ) =
+            Broadcasts.Model.update updateProps msg model.homeBroadcasts
+    in
+        { model | homeBroadcasts = broadcasts } ! [ fx |> Cmd.map HomeBroadcastsMsg ]
+
+
+updateExploreBroadcasts : BroadcastsMsg -> Model -> ( Model, Cmd Msg )
+updateExploreBroadcasts msg model =
+    let
+        updateProps =
+            { fetchBroadcasts = Api.fetchExploreBroadcasts model.session }
+
+        ( broadcasts, fx ) =
+            Broadcasts.Model.update updateProps msg model.exploreBroadcasts
+    in
+        { model | exploreBroadcasts = broadcasts } ! [ fx |> Cmd.map ExploreBroadcastsMsg ]
