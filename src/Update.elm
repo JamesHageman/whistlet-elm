@@ -5,7 +5,7 @@ import Types
         ( Model
         , Flags
         , Msg(..)
-        , BroadcastsMsg(ReceiveNewBroadcast, ReceiveOwner, LoadOwner, SendNewBroadcast)
+        , BroadcastsMsg(ReceiveNewBroadcast, SendNewBroadcast)
         , Session
         , Route(..)
         , Broadcast
@@ -74,14 +74,6 @@ loginActions session =
         ]
 
 
-updateBroadcasts : BroadcastsMsg -> Model -> ( Model, Cmd Msg )
-updateBroadcasts subMsg model =
-    model
-        ! []
-        |> Return.andThen (updateHomeBroadcasts subMsg)
-        |> Return.andThen (updateExploreBroadcasts subMsg)
-
-
 profilePageEmptyState : Profile -> ProfilePageState
 profilePageEmptyState profile =
     Success
@@ -121,6 +113,7 @@ loadProfile username model =
     in
         { model
             | profiles = model.profiles |> Dict.insert username newProfile
+            , focusedBroadcast = Nothing
         }
             ! [ fx ]
 
@@ -189,36 +182,6 @@ update msg model =
         Push url ->
             model ! [ newUrl url ]
 
-        FetchOwner broadcast ->
-            let
-                markBroadcastAsLoading : Model -> ( Model, Cmd Msg )
-                markBroadcastAsLoading =
-                    updateBroadcasts
-                        (LoadOwner broadcast)
-
-                fetchOwnerCmd : Cmd Msg
-                fetchOwnerCmd =
-                    Http.send
-                        (FetchedOwner broadcast)
-                        (Api.fetchBroadcastOwner broadcast model.session)
-            in
-                model
-                    |> Return.singleton
-                    |> Return.andThen markBroadcastAsLoading
-                    |> Return.command fetchOwnerCmd
-                    |> Return.andThen (update (ShowOwner broadcast))
-
-        FetchedOwner broadcast res ->
-            updateBroadcasts
-                (ReceiveOwner broadcast res)
-                model
-
-        ShowOwner broadcast ->
-            { model | focusedBroadcast = Just broadcast } ! []
-
-        HideOwners ->
-            { model | focusedBroadcast = Nothing } ! []
-
         TimeUpdate time ->
             { model | time = time } ! []
 
@@ -270,28 +233,46 @@ update msg model =
             updateProfilePageBroadcasts username msg model
 
 
+updateFocusedBroadcast : Maybe (Maybe Broadcast) -> Model -> Model
+updateFocusedBroadcast newBroadcast model =
+    case newBroadcast of
+        Nothing ->
+            model
+
+        Just newFocusedBroadcast ->
+            { model | focusedBroadcast = newFocusedBroadcast }
+
+
 updateHomeBroadcasts : BroadcastsMsg -> Model -> ( Model, Cmd Msg )
 updateHomeBroadcasts msg model =
     let
         updateProps =
-            { fetchBroadcasts = Api.fetchHomeBroadcasts model.session }
+            { fetchBroadcasts = Api.fetchHomeBroadcasts model.session
+            , fetchOwner = Api.fetchBroadcastOwner model.session
+            }
 
-        ( broadcasts, fx ) =
+        ( broadcasts, fx, newFocusedBroadcast ) =
             Broadcasts.Model.update updateProps msg model.homeBroadcasts
     in
-        { model | homeBroadcasts = broadcasts } ! [ fx |> Cmd.map HomeBroadcastsMsg ]
+        { model | homeBroadcasts = broadcasts }
+            ! [ fx |> Cmd.map HomeBroadcastsMsg ]
+            |> Return.map (updateFocusedBroadcast newFocusedBroadcast)
 
 
 updateExploreBroadcasts : BroadcastsMsg -> Model -> ( Model, Cmd Msg )
 updateExploreBroadcasts msg model =
     let
         updateProps =
-            { fetchBroadcasts = Api.fetchExploreBroadcasts model.session }
+            { fetchBroadcasts = Api.fetchExploreBroadcasts model.session
+            , fetchOwner = Api.fetchBroadcastOwner model.session
+            }
 
-        ( broadcasts, fx ) =
+        ( broadcasts, fx, newFocusedBroadcast ) =
             Broadcasts.Model.update updateProps msg model.exploreBroadcasts
     in
-        { model | exploreBroadcasts = broadcasts } ! [ fx |> Cmd.map ExploreBroadcastsMsg ]
+        { model | exploreBroadcasts = broadcasts }
+            ! [ fx |> Cmd.map ExploreBroadcastsMsg ]
+            |> Return.map (updateFocusedBroadcast newFocusedBroadcast)
 
 
 updateProfilePageBroadcasts : String -> BroadcastsMsg -> Model -> ( Model, Cmd Msg )
@@ -300,9 +281,11 @@ updateProfilePageBroadcasts username msg model =
         Just (Success profilePage) ->
             let
                 updateProps =
-                    { fetchBroadcasts = Api.fetchProfileBroadcasts profilePage.profile.id model.session }
+                    { fetchBroadcasts = Api.fetchProfileBroadcasts profilePage.profile.id model.session
+                    , fetchOwner = Api.fetchBroadcastOwner model.session
+                    }
 
-                ( broadcasts, fx ) =
+                ( broadcasts, fx, newFocusedBroadcast ) =
                     Broadcasts.Model.update updateProps msg profilePage.broadcasts
 
                 newProfilePage : ProfilePageState
@@ -316,7 +299,9 @@ updateProfilePageBroadcasts username msg model =
                 newModel =
                     { model | profiles = Dict.insert username newProfilePage model.profiles }
             in
-                newModel ! [ wrappedFx ]
+                newModel
+                    ! [ wrappedFx ]
+                    |> Return.map (updateFocusedBroadcast newFocusedBroadcast)
 
         _ ->
             model ! []

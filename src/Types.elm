@@ -17,10 +17,12 @@ type BroadcastsMsg
     = FetchBroadcasts (Maybe Date)
     | FetchedBroadcasts (Result Http.Error (List Broadcast))
     | LoadBroadcasts
-    | LoadOwner Broadcast
-    | ReceiveOwner Broadcast (Result Http.Error BroadcastOwner)
     | SendNewBroadcast
     | ReceiveNewBroadcast (Result Http.Error Broadcast)
+    | FetchOwner Broadcast
+    | FetchedOwner Broadcast (Result Http.Error BroadcastOwner)
+    | ShowOwner Broadcast
+    | HideOwners
 
 
 type alias BroadcastOwner =
@@ -112,10 +114,6 @@ type Route
 type Msg
     = Login String String
     | LoginFinish (Result Http.Error Session)
-    | FetchOwner Broadcast
-    | FetchedOwner Broadcast (Result Http.Error BroadcastOwner)
-    | ShowOwner Broadcast
-    | HideOwners
     | ChangeUsername String
     | ChangePassword String
     | ChangeComposeText String

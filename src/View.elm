@@ -19,9 +19,6 @@ renderBroadcastList f broadcasts model =
         { focusedBroadcast = model.focusedBroadcast
         , session = model.session
         , time = model.time
-        , showOwner = ShowOwner
-        , fetchOwner = FetchOwner
-        , hideOwners = HideOwners
         , link = link
         }
         broadcasts

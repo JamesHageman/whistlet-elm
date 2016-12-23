@@ -11,6 +11,7 @@ import Return
 
 type alias UpdateProps =
     { fetchBroadcasts : Maybe Date -> Http.Request (List Broadcast)
+    , fetchOwner : Broadcast -> Http.Request BroadcastOwner
     }
 
 
@@ -38,14 +39,37 @@ load req =
         ]
 
 
-update : UpdateProps -> BroadcastsMsg -> BroadcastsModel -> ( BroadcastsModel, Cmd BroadcastsMsg )
+update : UpdateProps -> BroadcastsMsg -> BroadcastsModel -> ( BroadcastsModel, Cmd BroadcastsMsg, Maybe (Maybe Broadcast) )
 update props msg model =
+    let
+        ( newModel, fx ) =
+            updateModel props msg model
+
+        output =
+            case msg of
+                FetchOwner broadcast ->
+                    Just (Just broadcast)
+
+                ShowOwner broadcast ->
+                    Just (Just broadcast)
+
+                HideOwners ->
+                    Just Nothing
+
+                _ ->
+                    Nothing
+    in
+        ( newModel, fx, output )
+
+
+updateModel : UpdateProps -> BroadcastsMsg -> BroadcastsModel -> ( BroadcastsModel, Cmd BroadcastsMsg )
+updateModel props msg model =
     case msg of
         FetchBroadcasts orderDate ->
             model
                 ! [ Http.send FetchedBroadcasts (props.fetchBroadcasts orderDate)
                   ]
-                |> Return.andThen (update props LoadBroadcasts)
+                |> Return.andThen (updateModel props LoadBroadcasts)
 
         LoadBroadcasts ->
             RemoteCollection.loadBack model ! []
@@ -56,12 +80,6 @@ update props msg model =
         FetchedBroadcasts (Err err) ->
             RemoteCollection.errorBack err model ! []
 
-        LoadOwner broadcast ->
-            RemoteCollection.map (loadOwner Loading broadcast) model ! []
-
-        ReceiveOwner b res ->
-            RemoteCollection.map (loadOwner (fromResult res) b) model ! []
-
         SendNewBroadcast ->
             RemoteCollection.loadFront model ! []
 
@@ -70,6 +88,20 @@ update props msg model =
 
         ReceiveNewBroadcast (Err err) ->
             RemoteCollection.errorBack err model ! []
+
+        FetchOwner broadcast ->
+            RemoteCollection.map (loadOwner Loading broadcast) model
+                ! [ Http.send (FetchedOwner broadcast) (props.fetchOwner broadcast)
+                  ]
+
+        FetchedOwner broadcast ownerResult ->
+            RemoteCollection.map (loadOwner (fromResult ownerResult) broadcast) model ! []
+
+        ShowOwner broadcast ->
+            model ! []
+
+        HideOwners ->
+            model ! []
 
 
 loadOwner : RemoteData Http.Error BroadcastOwner -> Broadcast -> List Broadcast -> List Broadcast
