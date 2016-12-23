@@ -1,6 +1,6 @@
 module Broadcasts.View exposing (Props, broadcastList)
 
-import Html exposing (Html, div, text, button, span)
+import Html exposing (Html, Attribute, div, text, button, span)
 import Html.Attributes exposing (class, style)
 import Html.Events exposing (onClick, onMouseOut, onMouseOver)
 import Types exposing (Broadcast, BroadcastsMsg(..), BroadcastsModel, BroadcastOwner, Session, broadcastCmp)
@@ -18,6 +18,7 @@ type alias Props msg =
     , showOwner : Broadcast -> msg
     , fetchOwner : Broadcast -> msg
     , hideOwners : msg
+    , link : String -> List (Attribute msg) -> List (Html msg) -> Html msg
     }
 
 
@@ -86,7 +87,7 @@ broadcastRow f props b =
             case props.focusedBroadcast of
                 Just b0 ->
                     if broadcastCmp b0 b then
-                        [ renderOwner b.owner (props.fetchOwner b) ]
+                        [ renderOwner props b.owner (props.fetchOwner b) ]
                     else
                         []
 
@@ -105,8 +106,8 @@ broadcastRow f props b =
             ]
 
 
-renderOwner : RemoteData Http.Error BroadcastOwner -> msg -> Html msg
-renderOwner owner retry =
+renderOwner : Props msg -> RemoteData Http.Error BroadcastOwner -> msg -> Html msg
+renderOwner props owner retry =
     div [ class "broadcast-row__owner" ]
         (case owner of
             Loading ->
@@ -114,7 +115,8 @@ renderOwner owner retry =
 
             Success owner ->
                 [ text owner.name
-                , span [ class "broadcast-row__username" ]
+                , props.link ("/profile/" ++ owner.username)
+                    [ class "broadcast-row__username" ]
                     [ text ("@" ++ owner.username)
                     ]
                 ]
