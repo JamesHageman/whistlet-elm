@@ -11,7 +11,7 @@ if (window.localStorage) {
       window.localStorage.getItem('whistlet:session')
     );
   } catch (e) {
-    console.log('Error decoding session information', e);
+    console.log('Error parsing session information', e);
   }
 }
 
