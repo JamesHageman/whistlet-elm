@@ -157,8 +157,8 @@ fetchProfileBroadcasts id =
     fetchBroadcasts "profile" (QueryString.empty |> QueryString.add "id" (toString id))
 
 
-fetchBroadcastOwner : Broadcast -> RemoteSession -> Http.Request BroadcastOwner
-fetchBroadcastOwner b session =
+fetchBroadcastOwner : RemoteSession -> Broadcast -> Http.Request BroadcastOwner
+fetchBroadcastOwner session b =
     let
         query0 =
             QueryString.empty

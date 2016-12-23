@@ -15,9 +15,6 @@ type alias Props msg =
     { focusedBroadcast : Maybe Broadcast
     , session : RemoteData Http.Error Session
     , time : Time
-    , showOwner : Broadcast -> msg
-    , fetchOwner : Broadcast -> msg
-    , hideOwners : msg
     , link : String -> List (Attribute msg) -> List (Html msg) -> Html msg
     }
 
@@ -64,16 +61,17 @@ broadcastRow f props b =
         showOnHover =
             case b.owner of
                 NotAsked ->
-                    onMouseOver (props.fetchOwner b)
+                    onMouseOver (FetchOwner b)
 
                 _ ->
-                    onMouseOver (props.showOwner b)
+                    onMouseOver (ShowOwner b)
 
         hideOnMouseOut =
-            onMouseOut props.hideOwners
+            onMouseOut HideOwners
 
+        attrs : List (Attribute msg)
         attrs =
-            [ cls, showOnHover, hideOnMouseOut ]
+            [ cls, showOnHover, hideOnMouseOut ] |> List.map (Html.Attributes.map f)
 
         broadcastContent =
             text b.text
@@ -87,7 +85,7 @@ broadcastRow f props b =
             case props.focusedBroadcast of
                 Just b0 ->
                     if broadcastCmp b0 b then
-                        [ renderOwner props b.owner (props.fetchOwner b) ]
+                        [ renderOwner f props b.owner (FetchOwner b) ]
                     else
                         []
 
@@ -106,33 +104,32 @@ broadcastRow f props b =
             ]
 
 
-renderOwner : Props msg -> RemoteData Http.Error BroadcastOwner -> msg -> Html msg
-renderOwner props owner retry =
+renderOwner : (BroadcastsMsg -> msg) -> Props msg -> RemoteData Http.Error BroadcastOwner -> BroadcastsMsg -> Html msg
+renderOwner f props owner retry =
     div [ class "broadcast-row__owner" ]
-        (case owner of
+        [ case owner of
             Success owner ->
-                [ text owner.name
-                , props.link ("/profile/" ++ owner.username)
-                    [ class "broadcast-row__username" ]
-                    [ text ("@" ++ owner.username)
+                div []
+                    [ text owner.name
+                    , props.link ("/profile/" ++ owner.username)
+                        [ class "broadcast-row__username" ]
+                        [ text ("@" ++ owner.username)
+                        ]
                     ]
-                ]
 
             Failure err ->
-                let
-                    _ =
-                        Debug.log "BroadcastOwner error: " err
-                in
+                div []
                     [ text "whoops! an error occurred..."
                     , button [ onClick retry ] [ text "try again" ]
                     ]
+                    |> Html.map f
 
             Loading ->
-                [ text "loading" ]
+                div [] [ text "loading" ]
 
             NotAsked ->
-                [ text "initializing" ]
-        )
+                div [] [ text "initializing" ]
+        ]
 
 
 broadcastNotExpired : Time.Time -> Broadcast -> Bool
