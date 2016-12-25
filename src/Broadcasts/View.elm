@@ -140,7 +140,7 @@ broadcastContent time broadcast =
     let
         fractionTimeLeft : Float
         fractionTimeLeft =
-            1 + (((Date.toTime broadcast.createdAt) - time) / (24 * Time.hour))
+            1 - ((time - (Date.toTime broadcast.createdAt)) / (24 * Time.hour))
 
         rightRotate =
             if fractionTimeLeft > 0.5 then
@@ -169,7 +169,7 @@ broadcastContent time broadcast =
                                 ]
                                 []
                             ]
-                        , div [ class "hold", style [ ( "transform", "rotate(180deg)")] ]
+                        , div [ class "hold", style [ ( "transform", "rotate(180deg)" ) ] ]
                             [ div
                                 [ class "pie-slice"
                                 , style [ ( "transform", rotate leftRotate ) ]
