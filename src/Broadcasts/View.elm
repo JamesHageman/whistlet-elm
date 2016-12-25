@@ -3,6 +3,8 @@ module Broadcasts.View exposing (Props, broadcastList)
 import Html exposing (Html, Attribute, div, text, button, span)
 import Html.Attributes exposing (class, style)
 import Html.Events exposing (onClick, onMouseOut, onMouseOver)
+import Html.Keyed
+import Html.Lazy exposing (lazy2)
 import Types exposing (Broadcast, BroadcastsMsg(..), BroadcastsModel, BroadcastOwner, Session, broadcastCmp)
 import Time exposing (Time)
 import Data.RemoteData exposing (RemoteData(..))
@@ -31,7 +33,7 @@ broadcastList f props model =
             |> RemoteCollection.items
             |> List.filter (broadcastNotExpired props.time)
             |> List.map (broadcastRow f props)
-            |> div []
+            |> Html.Keyed.node "div" []
         , RemoteCollection.foldBack
             (button
                 [ onClick
@@ -52,7 +54,7 @@ broadcastList f props model =
         ]
 
 
-broadcastRow : (BroadcastsMsg -> msg) -> Props msg -> Broadcast -> Html msg
+broadcastRow : (BroadcastsMsg -> msg) -> Props msg -> Broadcast -> ( String, Html msg )
 broadcastRow f props b =
     let
         cls =
@@ -71,10 +73,12 @@ broadcastRow f props b =
 
         attrs : List (Attribute msg)
         attrs =
-            [ cls, showOnHover, hideOnMouseOut ] |> List.map (Html.Attributes.map f)
+            [ cls, showOnHover, hideOnMouseOut ]
+                |> List.map (Html.Attributes.map f)
 
-        broadcastContent =
-            text b.text
+        content =
+            lazy2 broadcastContent props.time b
+                |> Html.map f
 
         opacity =
             props.focusedBroadcast
@@ -91,16 +95,95 @@ broadcastRow f props b =
 
                 Nothing ->
                     []
+
+        html =
+            div [ class "broadcast-row" ]
+                [ div attrs
+                    ([ div
+                        [ style [ ( "opacity", opacity ) ] ]
+                        [ content ]
+                     ]
+                        ++ owner
+                    )
+                ]
+
+        key =
+            (toString b.sourceId) ++ "-" ++ (toString b.rebroadcastId)
     in
-        div [ class "broadcast-row" ]
-            [ div attrs
-                ([ div
-                    [ style [ ( "opacity", opacity ) ]
+        ( key, html )
+
+
+
+-- var rightRotate = props.fractionTimeLeft > 0.5 ? (props.fractionTimeLeft-0.5)*-360 : 0;
+-- var leftRotate = props.fractionTimeLeft < 0.5 ? (props.fractionTimeLeft)*-360 : -180;
+-- return <div className="pie-container">
+--   <div className="hold">
+--     <div className="pie-slice"
+--           style={{ transform: 'rotate('+ rightRotate +'deg)' }} />
+--   </div>
+--   <div className="hold" style={{ transform: 'rotate(180deg)' }} >
+--     <div className="pie-slice"
+--           style={{ transform: 'rotate('+ leftRotate +'deg)' }}/>
+--   </div>
+--   <div className="pie-foreground" onClick={props.onClick}>
+--       <div className="num-rebroadcasts">{props.rebroadcastCount} </div>
+--       <div className="rotation-container">
+--           <div className="grey"></div>
+--           <div className="orange"></div>
+--       </div>
+--   </div>
+-- </div>;
+
+
+broadcastContent : Time -> Broadcast -> Html BroadcastsMsg
+broadcastContent time broadcast =
+    let
+        fractionTimeLeft : Float
+        fractionTimeLeft =
+            ((Date.toTime broadcast.createdAt) - time) / (24 * Time.hour)
+
+        rightRotate =
+            if fractionTimeLeft > 0.5 then
+                (fractionTimeLeft - 0.5) * -360
+            else
+                0
+
+        leftRotate =
+            if fractionTimeLeft < 5 then
+                (fractionTimeLeft) * -360
+            else
+                -180
+
+        rotate amount =
+            "rotate(" ++ (toString amount) ++ "deg)"
+    in
+        div []
+            [ span [] [ text broadcast.text ]
+            , div [ class "pie-container" ]
+                [ div [ class "hold" ]
+                    [ div
+                        [ class "pie-slice"
+                        , style [ ( "transform", rotate rightRotate ) ]
+                        ]
+                        []
                     ]
-                    [ broadcastContent ]
-                 ]
-                    ++ owner
-                )
+                , div [ class "hold" ]
+                    [ div
+                        [ class "pie-slice"
+                        , style [ ( "transform", rotate leftRotate ) ]
+                        ]
+                        []
+                    ]
+                , div [ class "pie-foreground" ]
+                    [ div [ class "num-rebroadcasts" ]
+                        [ text (toString broadcast.rebroadcastCount)
+                        ]
+                    ]
+                , div [ class "rotation-container" ]
+                    [ div [ class "grey" ] []
+                    , div [ class "orange" ] []
+                    ]
+                ]
             ]
 
 
