@@ -108,7 +108,7 @@ body {
 
 .orange {
   position: absolute;
-  background-image: url(../public/img/rb-orange.svg);
+  background-image: url(./assets/rb-orange.svg);
   width: 60px;
   height: 60px;
 }
