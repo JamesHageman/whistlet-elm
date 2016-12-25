@@ -140,7 +140,7 @@ broadcastContent time broadcast =
     let
         fractionTimeLeft : Float
         fractionTimeLeft =
-            ((Date.toTime broadcast.createdAt) - time) / (24 * Time.hour)
+            1 + (((Date.toTime broadcast.createdAt) - time) / (24 * Time.hour))
 
         rightRotate =
             if fractionTimeLeft > 0.5 then
@@ -149,7 +149,7 @@ broadcastContent time broadcast =
                 0
 
         leftRotate =
-            if fractionTimeLeft < 5 then
+            if fractionTimeLeft < 0.5 then
                 (fractionTimeLeft) * -360
             else
                 -180
@@ -158,30 +158,34 @@ broadcastContent time broadcast =
             "rotate(" ++ (toString amount) ++ "deg)"
     in
         div []
-            [ span [] [ text broadcast.text ]
-            , div [ class "pie-container" ]
-                [ div [ class "hold" ]
-                    [ div
-                        [ class "pie-slice"
-                        , style [ ( "transform", rotate rightRotate ) ]
+            [ div [ class "broadcast-content-container" ] [ text broadcast.text ]
+            , div [ class "broadcast-details-container" ]
+                [ div [ class "broadcast-time" ]
+                    [ div [ class "pie-container" ]
+                        [ div [ class "hold" ]
+                            [ div
+                                [ class "pie-slice"
+                                , style [ ( "transform", rotate rightRotate ) ]
+                                ]
+                                []
+                            ]
+                        , div [ class "hold", style [ ( "transform", "rotate(180deg)")] ]
+                            [ div
+                                [ class "pie-slice"
+                                , style [ ( "transform", rotate leftRotate ) ]
+                                ]
+                                []
+                            ]
+                        , div [ class "pie-foreground" ]
+                            [ div [ class "num-rebroadcasts" ]
+                                [ text (toString broadcast.rebroadcastCount)
+                                ]
+                            ]
+                        , div [ class "rotation-container" ]
+                            [ div [ class "grey" ] []
+                            , div [ class "orange" ] []
+                            ]
                         ]
-                        []
-                    ]
-                , div [ class "hold" ]
-                    [ div
-                        [ class "pie-slice"
-                        , style [ ( "transform", rotate leftRotate ) ]
-                        ]
-                        []
-                    ]
-                , div [ class "pie-foreground" ]
-                    [ div [ class "num-rebroadcasts" ]
-                        [ text (toString broadcast.rebroadcastCount)
-                        ]
-                    ]
-                , div [ class "rotation-container" ]
-                    [ div [ class "grey" ] []
-                    , div [ class "orange" ] []
                     ]
                 ]
             ]
