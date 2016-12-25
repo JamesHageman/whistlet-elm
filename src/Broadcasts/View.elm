@@ -113,28 +113,6 @@ broadcastRow f props b =
         ( key, html )
 
 
-
--- var rightRotate = props.fractionTimeLeft > 0.5 ? (props.fractionTimeLeft-0.5)*-360 : 0;
--- var leftRotate = props.fractionTimeLeft < 0.5 ? (props.fractionTimeLeft)*-360 : -180;
--- return <div className="pie-container">
---   <div className="hold">
---     <div className="pie-slice"
---           style={{ transform: 'rotate('+ rightRotate +'deg)' }} />
---   </div>
---   <div className="hold" style={{ transform: 'rotate(180deg)' }} >
---     <div className="pie-slice"
---           style={{ transform: 'rotate('+ leftRotate +'deg)' }}/>
---   </div>
---   <div className="pie-foreground" onClick={props.onClick}>
---       <div className="num-rebroadcasts">{props.rebroadcastCount} </div>
---       <div className="rotation-container">
---           <div className="grey"></div>
---           <div className="orange"></div>
---       </div>
---   </div>
--- </div>;
-
-
 broadcastContent : Time -> Broadcast -> Html BroadcastsMsg
 broadcastContent time broadcast =
     let
