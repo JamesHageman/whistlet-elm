@@ -9,6 +9,22 @@ import Navigation exposing (Location)
 import Time exposing (Time)
 
 
+type alias BroadcastsModel =
+    RemoteCollection Http.Error Broadcast
+
+
+type BroadcastsMsg
+    = FetchBroadcasts (Maybe Date)
+    | FetchedBroadcasts (Result Http.Error (List Broadcast))
+    | LoadBroadcasts
+    | SendNewBroadcast
+    | ReceiveNewBroadcast (Result Http.Error Broadcast)
+    | FetchOwner Broadcast
+    | FetchedOwner Broadcast (Result Http.Error BroadcastOwner)
+    | ShowOwner Broadcast
+    | HideOwners
+
+
 type alias BroadcastOwner =
     { avatarUrl : Maybe String
     , id : Int
@@ -30,15 +46,16 @@ type alias Broadcast =
     }
 
 
-type alias UserProfile =
-    { name : String
+type alias Profile =
+    { id : Int
+    , name : String
     , username : String
     , amp : Int
     , avatarUrl : Maybe String
     , didFollow : Bool
     , followsYou : Bool
-    , followers : Int
-    , following : Int
+    , followersCount : Int
+    , followingCount : Int
     , createdAt : Date
     }
 
@@ -59,6 +76,20 @@ type alias Flags =
     }
 
 
+{-| Why is this whole type a RemoteData? Becuase we need the profile to exist
+in order to fetch the followers and broadcasts. If ProfilePageState was a
+record containing a RemoteData Profile, then there could be a state where the
+broadcasts existed, but the profile did not.
+-}
+type alias ProfilePageState =
+    RemoteData Http.Error
+        { profile : Profile
+        , broadcasts : RemoteCollection Http.Error Broadcast
+        , followers : RemoteCollection Http.Error Profile
+        , following : RemoteCollection Http.Error Profile
+        }
+
+
 type alias Model =
     { session : RemoteData Http.Error Session
     , loginForm : ( String, String )
@@ -68,34 +99,32 @@ type alias Model =
     , composeText : String
     , route : Route
     , time : Time
-    , me : RemoteData Http.Error UserProfile
+    , me : RemoteData Http.Error Profile
+    , profiles : Dict String ProfilePageState
     }
 
 
 type Route
-    = Home
-    | Explore
-    | Profile String
-    | NotFound Location
+    = HomePage
+    | ExplorePage
+    | ProfilePage String
+    | NotFoundPage Location
 
 
 type Msg
     = Login String String
     | LoginFinish (Result Http.Error Session)
-    | FetchBroadcasts Route (Maybe Date)
-    | FetchedBroadcasts Route (Result Http.Error (List Broadcast))
-    | FetchOwner Broadcast
-    | FetchedOwner Broadcast (Result Http.Error BroadcastOwner)
-    | ShowOwner Broadcast
-    | HideOwners
     | ChangeUsername String
     | ChangePassword String
     | ChangeComposeText String
     | SendBroadcast String
-    | ReceiveNewBroadcast (Result Http.Error Broadcast)
     | UrlChange Location
     | Push String
     | TimeUpdate Time
     | Logout
     | FetchProfileById Int
-    | FetchedProfile (Result Http.Error UserProfile)
+    | FetchedMyProfile (Result Http.Error Profile)
+    | FetchedOtherProfile String (Result Http.Error Profile)
+    | HomeBroadcastsMsg BroadcastsMsg
+    | ExploreBroadcastsMsg BroadcastsMsg
+    | ProfilePageBroadcastsMsg String BroadcastsMsg

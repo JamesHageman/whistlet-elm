@@ -3,19 +3,21 @@ module Api
         ( login
         , fetchHomeBroadcasts
         , fetchExploreBroadcasts
+        , fetchProfileBroadcasts
         , sendBroadcast
         , fetchBroadcastOwner
         , fetchProfileById
+        , fetchProfileByUsername
         )
 
 import Http
-import Types exposing (Model, Broadcast, BroadcastOwner, Session, Msg(LoginFinish), UserProfile)
+import Types exposing (Broadcast, BroadcastOwner, Session, Msg(LoginFinish), Profile)
 import Json.Decode exposing (Decoder, nullable, string, int, field, succeed, fail, andThen, list, bool)
 import Json.Decode.Pipeline exposing (decode, required, optional, hardcoded)
 import Json.Encode as JS
 import Date exposing (Date)
 import Data.RemoteData exposing (mapSuccess, withDefault, RemoteData(NotAsked))
-import QueryString
+import QueryString exposing (QueryString)
 import Date.Extra exposing (toUtcIsoString)
 
 
@@ -36,9 +38,10 @@ sessionDecoder =
         |> field "auth"
 
 
-userProfileDecoder : Decoder UserProfile
+userProfileDecoder : Decoder Profile
 userProfileDecoder =
-    decode UserProfile
+    decode Profile
+        |> required "id" int
         |> required "name" string
         |> required "username" string
         |> required "amp" int
@@ -123,34 +126,39 @@ broadcastsDecoder =
         |> field "broadcasts"
 
 
-fetchBroadcasts : String -> RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
-fetchBroadcasts page session orderDate =
+fetchBroadcasts : String -> QueryString -> RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
+fetchBroadcasts page qs session orderDate =
     let
         query =
             case orderDate of
                 Just date ->
-                    QueryString.empty
+                    qs
                         |> QueryString.add "order_date"
                             (toUtcIsoString date)
 
                 Nothing ->
-                    QueryString.empty
+                    qs
     in
         Http.get (url ("/broadcasts/" ++ page) query session) broadcastsDecoder
 
 
 fetchHomeBroadcasts : RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
 fetchHomeBroadcasts =
-    fetchBroadcasts "home"
+    fetchBroadcasts "home" QueryString.empty
 
 
 fetchExploreBroadcasts : RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
 fetchExploreBroadcasts =
-    fetchBroadcasts "explore"
+    fetchBroadcasts "explore" QueryString.empty
 
 
-fetchBroadcastOwner : Broadcast -> RemoteSession -> Http.Request BroadcastOwner
-fetchBroadcastOwner b model =
+fetchProfileBroadcasts : Int -> RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
+fetchProfileBroadcasts id =
+    fetchBroadcasts "profile" (QueryString.empty |> QueryString.add "id" (toString id))
+
+
+fetchBroadcastOwner : RemoteSession -> Broadcast -> Http.Request BroadcastOwner
+fetchBroadcastOwner session b =
     let
         query0 =
             QueryString.empty
@@ -163,11 +171,11 @@ fetchBroadcastOwner b model =
                 query0
                     |> QueryString.add "rebroadcast_id" (toString b.rebroadcastId)
     in
-        Http.get (url "/social/broadcast_owner" query model) broadcastOwnerDecoder
+        Http.get (url "/social/broadcast_owner" query session) broadcastOwnerDecoder
 
 
 sendBroadcast : RemoteSession -> String -> Http.Request Broadcast
-sendBroadcast model text =
+sendBroadcast session text =
     let
         body =
             JS.object
@@ -175,14 +183,24 @@ sendBroadcast model text =
                 ]
                 |> Http.jsonBody
     in
-        Http.post (url "/broadcasts" QueryString.empty model) body (field "broadcast" broadcastDecoder)
+        Http.post (url "/broadcasts" QueryString.empty session) body (field "broadcast" broadcastDecoder)
 
 
-fetchProfileById : RemoteSession -> Int -> Http.Request UserProfile
-fetchProfileById model id =
+fetchProfileById : RemoteSession -> Int -> Http.Request Profile
+fetchProfileById session id =
     let
         qs =
             QueryString.empty
                 |> QueryString.add "id" (toString id)
     in
-        Http.get (url "/users" qs model) userProfileDecoder
+        Http.get (url "/users" qs session) userProfileDecoder
+
+
+fetchProfileByUsername : RemoteSession -> String -> Http.Request Profile
+fetchProfileByUsername session username =
+    let
+        qs =
+            QueryString.empty
+                |> QueryString.add "username" username
+    in
+        Http.get (url "/users" qs session) userProfileDecoder

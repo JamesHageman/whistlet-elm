@@ -1,6 +1,6 @@
 module Data.RemoteCollection
     exposing
-        ( remoteCollection
+        ( empty
         , RemoteCollection
         , loadFront
         , loadBack
@@ -29,13 +29,30 @@ type RemoteCollection err a
         }
 
 
-remoteCollection : RemoteCollection x a
-remoteCollection =
+empty : RemoteCollection x a
+empty =
     RemoteCollection
         { data = []
         , frontStatus = NotAsked
         , backStatus = NotAsked
         }
+
+
+{-| Returns true if no data is in the collection and no data is loading
+-}
+isEmpty : RemoteCollection x a -> Bool
+isEmpty (RemoteCollection col) =
+    List.isEmpty col.data
+        && (case ( col.frontStatus, col.backStatus ) of
+                ( Loading, _ ) ->
+                    False
+
+                ( _, Loading ) ->
+                    False
+
+                _ ->
+                    True
+           )
 
 
 loadFront : RemoteCollection x a -> RemoteCollection x a
