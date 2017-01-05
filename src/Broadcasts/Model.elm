@@ -105,12 +105,12 @@ updateModel props msg model =
 
 
 loadOwner : RemoteData Http.Error BroadcastOwner -> Broadcast -> List Broadcast -> List Broadcast
-loadOwner owner b0 broadcasts =
+loadOwner owner broadcast broadcasts =
     List.map
-        (\b ->
-            if broadcastCmp b b0 then
-                { b | owner = owner }
+        (\otherBroadcast ->
+            if broadcastCmp otherBroadcast broadcast then
+                { otherBroadcast | owner = owner }
             else
-                b
+                otherBroadcast
         )
         broadcasts

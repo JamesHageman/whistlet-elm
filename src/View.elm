@@ -13,9 +13,9 @@ import Broadcasts.View exposing (broadcastList)
 
 
 renderBroadcastList : (BroadcastsMsg -> Msg) -> BroadcastsModel -> Model -> Html Msg
-renderBroadcastList f broadcasts model =
+renderBroadcastList convertMsg broadcasts model =
     broadcastList
-        f
+        convertMsg
         { focusedBroadcast = model.focusedBroadcast
         , session = model.session
         , time = model.time

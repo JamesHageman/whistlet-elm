@@ -68,16 +68,16 @@ login username password =
         Http.post (baseUrl ++ "/users/login") body sessionDecoder
 
 
-url : String -> QueryString.QueryString -> RemoteSession -> String
-url path qs session =
+buildUrl : String -> QueryString.QueryString -> RemoteSession -> String
+buildUrl path baseQuery session =
     let
         query =
             session
                 |> mapSuccess
                     (\session ->
-                        qs |> QueryString.add "token" session.token
+                        baseQuery |> QueryString.add "token" session.token
                     )
-                |> withDefault qs
+                |> withDefault baseQuery
     in
         baseUrl ++ path ++ (QueryString.render query)
 
@@ -86,8 +86,8 @@ stringToDate : Decoder Date.Date
 stringToDate =
     string
         |> andThen
-            (\val ->
-                case Date.fromString val of
+            (\dateString ->
+                case Date.fromString dateString of
                     Err err ->
                         fail err
 
@@ -127,19 +127,19 @@ broadcastsDecoder =
 
 
 fetchBroadcasts : String -> QueryString -> RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
-fetchBroadcasts page qs session orderDate =
+fetchBroadcasts page baseQuery session orderDate =
     let
         query =
             case orderDate of
                 Just date ->
-                    qs
+                    baseQuery
                         |> QueryString.add "order_date"
                             (toUtcIsoString date)
 
                 Nothing ->
-                    qs
+                    baseQuery
     in
-        Http.get (url ("/broadcasts/" ++ page) query session) broadcastsDecoder
+        Http.get (buildUrl ("/broadcasts/" ++ page) query session) broadcastsDecoder
 
 
 fetchHomeBroadcasts : RemoteSession -> Maybe Date -> Http.Request (List Broadcast)
@@ -158,20 +158,20 @@ fetchProfileBroadcasts id =
 
 
 fetchBroadcastOwner : RemoteSession -> Broadcast -> Http.Request BroadcastOwner
-fetchBroadcastOwner session b =
+fetchBroadcastOwner session broadcast =
     let
-        query0 =
+        baseQuery =
             QueryString.empty
-                |> QueryString.add "broadcast_id" (toString b.sourceId)
+                |> QueryString.add "broadcast_id" (toString broadcast.sourceId)
 
         query =
-            if b.rebroadcastId == 0 then
-                query0
+            if broadcast.rebroadcastId == 0 then
+                baseQuery
             else
-                query0
-                    |> QueryString.add "rebroadcast_id" (toString b.rebroadcastId)
+                baseQuery
+                    |> QueryString.add "rebroadcast_id" (toString broadcast.rebroadcastId)
     in
-        Http.get (url "/social/broadcast_owner" query session) broadcastOwnerDecoder
+        Http.get (buildUrl "/social/broadcast_owner" query session) broadcastOwnerDecoder
 
 
 sendBroadcast : RemoteSession -> String -> Http.Request Broadcast
@@ -183,24 +183,24 @@ sendBroadcast session text =
                 ]
                 |> Http.jsonBody
     in
-        Http.post (url "/broadcasts" QueryString.empty session) body (field "broadcast" broadcastDecoder)
+        Http.post (buildUrl "/broadcasts" QueryString.empty session) body (field "broadcast" broadcastDecoder)
 
 
 fetchProfileById : RemoteSession -> Int -> Http.Request Profile
 fetchProfileById session id =
     let
-        qs =
+        query =
             QueryString.empty
                 |> QueryString.add "id" (toString id)
     in
-        Http.get (url "/users" qs session) userProfileDecoder
+        Http.get (buildUrl "/users" query session) userProfileDecoder
 
 
 fetchProfileByUsername : RemoteSession -> String -> Http.Request Profile
 fetchProfileByUsername session username =
     let
-        qs =
+        query =
             QueryString.empty
                 |> QueryString.add "username" username
     in
-        Http.get (url "/users" qs session) userProfileDecoder
+        Http.get (buildUrl "/users" query session) userProfileDecoder

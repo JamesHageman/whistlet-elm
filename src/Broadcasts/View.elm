@@ -22,7 +22,7 @@ type alias Props msg =
 
 
 broadcastList : (BroadcastsMsg -> msg) -> Props msg -> BroadcastsModel -> Html msg
-broadcastList f props model =
+broadcastList convertMsg props model =
     div [ class "broadcast-list" ]
         [ RemoteCollection.foldFront
             (text "")
@@ -32,7 +32,7 @@ broadcastList f props model =
         , model
             |> RemoteCollection.items
             |> List.filter (broadcastNotExpired props.time)
-            |> List.map (broadcastRow f props)
+            |> List.map (broadcastRow convertMsg props)
             |> Html.Keyed.node "div" []
         , RemoteCollection.foldBack
             (button
@@ -46,7 +46,7 @@ broadcastList f props model =
                     )
                 ]
                 [ text "load more" ]
-                |> Html.map f
+                |> Html.map convertMsg
             )
             (text "loading...")
             renderError
@@ -55,18 +55,18 @@ broadcastList f props model =
 
 
 broadcastRow : (BroadcastsMsg -> msg) -> Props msg -> Broadcast -> ( String, Html msg )
-broadcastRow f props b =
+broadcastRow convertMsg props broadcast =
     let
         cls =
             class "broadcast-row__hover-target"
 
         showOnHover =
-            case b.owner of
+            case broadcast.owner of
                 NotAsked ->
-                    onMouseOver (FetchOwner b)
+                    onMouseOver (FetchOwner broadcast)
 
                 _ ->
-                    onMouseOver (ShowOwner b)
+                    onMouseOver (ShowOwner broadcast)
 
         hideOnMouseOut =
             onMouseOut HideOwners
@@ -74,11 +74,11 @@ broadcastRow f props b =
         attrs : List (Attribute msg)
         attrs =
             [ cls, showOnHover, hideOnMouseOut ]
-                |> List.map (Html.Attributes.map f)
+                |> List.map (Html.Attributes.map convertMsg)
 
         content =
-            lazy2 broadcastContent props.time b
-                |> Html.map f
+            lazy2 broadcastContent props.time broadcast
+                |> Html.map convertMsg
 
         opacity =
             props.focusedBroadcast
@@ -87,9 +87,14 @@ broadcastRow f props b =
 
         owner =
             case props.focusedBroadcast of
-                Just b0 ->
-                    if broadcastCmp b0 b then
-                        [ renderOwner f props b.owner (FetchOwner b) ]
+                Just focusedBroadcast ->
+                    if broadcastCmp focusedBroadcast broadcast then
+                        [ renderOwner
+                            convertMsg
+                            props
+                            broadcast.owner
+                            (FetchOwner broadcast)
+                        ]
                     else
                         []
 
@@ -108,7 +113,7 @@ broadcastRow f props b =
                 ]
 
         key =
-            (toString b.sourceId) ++ "-" ++ (toString b.rebroadcastId)
+            (toString broadcast.sourceId) ++ "-" ++ (toString broadcast.rebroadcastId)
     in
         ( key, html )
 
@@ -170,7 +175,7 @@ broadcastContent time broadcast =
 
 
 renderOwner : (BroadcastsMsg -> msg) -> Props msg -> RemoteData Http.Error BroadcastOwner -> BroadcastsMsg -> Html msg
-renderOwner f props owner retry =
+renderOwner convertMsg props owner retry =
     div [ class "broadcast-row__owner" ]
         [ case owner of
             Success owner ->
@@ -187,7 +192,7 @@ renderOwner f props owner retry =
                     [ text "whoops! an error occurred..."
                     , button [ onClick retry ] [ text "try again" ]
                     ]
-                    |> Html.map f
+                    |> Html.map convertMsg
 
             Loading ->
                 div [] [ text "loading" ]
@@ -198,8 +203,8 @@ renderOwner f props owner retry =
 
 
 broadcastNotExpired : Time.Time -> Broadcast -> Bool
-broadcastNotExpired time b =
-    time - (Date.toTime b.createdAt) < (24 * Time.hour)
+broadcastNotExpired now broadcast =
+    now - (Date.toTime broadcast.createdAt) < (24 * Time.hour)
 
 
 renderError : Http.Error -> Html msg
@@ -208,7 +213,7 @@ renderError err =
 
 
 last : List a -> Maybe a
-last xs =
-    xs
-        |> List.drop ((List.length xs) - 1)
+last list =
+    list
+        |> List.drop ((List.length list) - 1)
         |> List.head
